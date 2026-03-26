@@ -24,12 +24,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger = get_logger(__name__)
 
     logger.info(
-        "COGNET LDI Engine מתחיל לפעול",
+        "COGNET LDI Engine starting",
         env=settings.app_env,
         host=settings.api_host,
         port=settings.api_port,
-        is_production=settings.is_production,
     )
+
+    # Auto-initialize DB on startup
+    try:
+        from app.db.session import engine
+        from app.db.base import Base
+        import app.models  # noqa: F401
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("Database tables ready")
+    except Exception as e:
+        logger.warning(f"DB init: {e}")
 
     yield  # האפליקציה רצה כאן
 
@@ -63,14 +73,8 @@ def create_app() -> FastAPI:
 
     # הגדרת CORS
     # בסביבת production יש להחליף את ["*"] ברשימת domains מורשים
-    if settings.is_production:
-        allowed_origins = [
-            "https://cognet.app",
-            "https://www.cognet.app",
-        ]
-    else:
-        # בפיתוח — מאפשר כל מקור
-        allowed_origins = ["*"]
+    # Allow all origins for now — restrict in production when domain is set
+    allowed_origins = ["*"]
 
     app.add_middleware(
         CORSMiddleware,

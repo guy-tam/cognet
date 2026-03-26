@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: cognet-api
+    runtime: python
+    buildCommand: pip install -r requirements.txt && cd ../.. && pip install -e . 2>/dev/null; python init_db.py
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        value: sqlite+aiosqlite:///./cognet_ldi.db
+      - key: APP_SECRET_KEY
+        generateValue: true
+      - key: APP_ENV
+        value: production
+      - key: PYTHONPATH
+        value: /opt/render/project/src/apps/api:/opt/render/project/src/services:/opt/render/project/src
