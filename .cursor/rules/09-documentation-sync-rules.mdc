@@ -1,0 +1,75 @@
+---
+description: Documentation synchronization rules
+globs: ["docs/**/*", "**/*.md"]
+alwaysApply: false
+---
+
+# Documentation Synchronization Rules
+
+## Core Principle
+
+Documentation and code must describe the same system. When they diverge, fix both — do not leave one stale while correcting the other.
+
+## Change-Triggered Doc Updates
+
+When any of the following changes, update the relevant documentation in the same commit or PR — not as a follow-up:
+
+| Change type                         | Must update                         |
+|-------------------------------------|-------------------------------------|
+| Architecture or service boundaries  | `docs/architecture.md`              |
+| Data flow or pipeline stages        | `docs/data-flow.md`                 |
+| Domain model / entity definitions   | `docs/domain-model.md`              |
+| New or modified API endpoints       | `docs/api-contracts.md`             |
+| Score families, weights, thresholds | `docs/scoring-governance.md`        |
+| New data source or source family    | `docs/source-catalog.md`            |
+| New taxonomy entity or hierarchy    | `docs/taxonomy-model.md`            |
+
+## Required Core Docs
+
+The following documents must exist and stay synchronized with the codebase at all times:
+
+- `docs/architecture.md` — system overview, service boundaries, deployment topology
+- `docs/data-flow.md` — pipeline stages, data transformations, inter-service data movement
+- `docs/domain-model.md` — canonical entity definitions, relationships, field glossary
+- `docs/api-contracts.md` — all endpoints, request/response schemas, error codes, pagination
+- `docs/scoring-governance.md` — score families, weight table, classification thresholds, downgrade rules
+
+## Service Directory READMEs
+
+Every service directory under `/services/` must contain a `README.md` that states:
+
+1. **Purpose** — what problem this service solves in one paragraph
+2. **Inputs** — what data or events this service consumes, and from where
+3. **Outputs** — what data or events this service produces, and where they go
+4. **Key files** — a short list of the most important files and what each does
+
+A README that says "this service does ranking" without specifying inputs, outputs, and key files does not satisfy this requirement.
+
+## Naming Stability
+
+- Entity names, field names, route paths, score family names, and classification tier names are stable identifiers — treat renames as breaking changes.
+- If a rename is necessary: update every reference in docs, code, schemas, tests, and any seed or fixture data in a single atomic change.
+- Do not rename an entity in code while leaving old names in documentation, or vice versa.
+
+## Prohibited Documentation Practices
+
+- Do not create documentation for features that are planned but do not exist in code. Document what exists.
+- Do not write documentation in future tense describing incomplete systems as if they are built ("The pipeline will process..."). Use present tense only for implemented features.
+- Do not write "TODO" sections that describe the complete specification of a feature — that belongs in a GitHub issue or design doc, not in reference documentation.
+- Do not copy-paste schema fields into documentation and then let them drift — reference the canonical source or keep docs tightly scoped.
+
+## New Entity Checklist
+
+When adding a new score family, source family, or taxonomy entity, complete all of the following before the PR is merged:
+
+- [ ] Code implementation
+- [ ] Pydantic schema updated in `/shared/contracts/`
+- [ ] Relevant doc updated (scoring-governance, source-catalog, or taxonomy-model)
+- [ ] Unit test added
+- [ ] `domain-model.md` updated if the entity is part of the domain model
+
+## Documentation Quality Bar
+
+- Doc sections that exist only as headings with no content must be removed or filled.
+- Diagrams (if present) must match the current architecture — stale diagrams are worse than no diagrams.
+- Code examples in documentation must be valid — run or verify them before committing.

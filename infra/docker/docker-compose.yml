@@ -1,0 +1,57 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cognet_postgres
+    environment:
+      POSTGRES_USER: cognet
+      POSTGRES_PASSWORD: cognet
+      POSTGRES_DB: cognet_ldi
+    ports:
+      - "5432:5432"
+    volumes:
+      - cognet_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cognet -d cognet_ldi"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: cognet_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - cognet_redis_data:/data
+
+  api:
+    build:
+      context: ../../apps/api
+      dockerfile: ../../infra/docker/Dockerfile.api
+    container_name: cognet_api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - ../../apps/api/.env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../../apps/api:/app
+      - ../../services:/services
+      - ../../shared:/shared
+    environment:
+      - PYTHONPATH=/app:/services:/shared/..
+
+volumes:
+  cognet_postgres_data:
+  cognet_redis_data:

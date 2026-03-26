@@ -1,0 +1,61 @@
+---
+description: Localization and RTL rules — bilingual EN+HE admin UI
+globs: ["apps/admin/**/*"]
+alwaysApply: false
+---
+
+# Localization and RTL Rules
+
+## Bilingual Requirement
+
+- Admin UI MUST support English and Hebrew — do NOT ship English-only components
+- Every user-facing string in every admin component must use a translation key — no hardcoded strings in JSX or component logic
+- Locale files live at:
+  - `apps/admin/locales/en/common.json`
+  - `apps/admin/locales/he/common.json`
+- Every key added to one locale file must be added to the other in the same commit — partial keys are not acceptable
+- Missing keys fall back to English, but this fallback is a warning state, not an acceptable ship state
+
+## RTL Structural Requirements
+
+- Hebrew locale MUST set `dir="rtl"` on the `<html>` element — do NOT set it only on inner containers
+- All layout components must use Tailwind RTL utility classes:
+  - `rtl:text-right` instead of hardcoded `text-right`
+  - `rtl:flex-row-reverse` instead of hardcoded `flex-row-reverse`
+  - `rtl:mr-0 rtl:ml-auto` to mirror margin logic
+  - `rtl:space-x-reverse` where horizontal spacing is used in flex rows
+- Never use absolute or fixed positioning for navigation or layout elements that would break in RTL — use logical CSS properties or Tailwind RTL variants
+- If a component uses `left-*` or `right-*` Tailwind classes for layout, it must also declare the RTL mirror using `rtl:left-*` / `rtl:right-*`
+
+## Component-Level Localization Rules
+
+- Score breakdown tables must render column order and text alignment correctly in both LTR and RTL
+- Modals and drawers must open from the correct edge in RTL — use `end` positioning, not `start` or `left`
+- Form labels, placeholders, validation messages, and ARIA labels must all be translated — not just visible text
+- Empty state messages, loading indicators, and error banners must have translated text in both locales
+- Tooltips and hover text must use translation keys — they are user-facing strings
+
+## Locale Switcher
+
+- A locale switcher must be visible and accessible on every page of the admin UI
+- The selected locale must persist across navigation — store in a cookie or localStorage, not only in component state
+- Switching locale must not require a full page reload if the framework supports client-side locale switching
+
+## Typography
+
+- Hebrew text must use `Rubik` or `Heebo` font family — do NOT fall back to system sans-serif for Hebrew UI text
+- Load the Hebrew font via the project's font configuration — do not rely on CDN at runtime in production
+
+## Number and Date Formatting
+
+- All numbers, dates, and currency values must be formatted using the `Intl` API with the active locale — example: `new Intl.DateTimeFormat(locale).format(date)`
+- Do NOT hardcode date formats such as `MM/DD/YYYY` or `DD/MM/YYYY` — these are locale-specific
+- Percentage and score values must respect locale decimal and grouping separators via `Intl.NumberFormat`
+
+## Validation Before Shipping
+
+- Before marking any admin UI component complete, verify:
+  - Both locale files have the required keys
+  - The component renders without layout breakage in RTL (manual check or snapshot)
+  - No hardcoded strings remain in JSX
+  - Font loads correctly for Hebrew text

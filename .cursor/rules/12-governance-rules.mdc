@@ -1,0 +1,73 @@
+---
+description: Governance rules — scoring changes, taxonomy changes, source changes must be deliberate
+globs: ["services/ranking/**/*", "services/taxonomy/**/*", "services/governance/**/*", "docs/governance/**/*"]
+alwaysApply: false
+---
+
+# Governance Rules
+
+## Scoring Changes
+
+- Do NOT change score weights, scoring formulas, or score normalization logic without:
+  1. Updating `docs/governance/scoring-governance.md` with the rationale, old values, new values, and effective date
+  2. Updating all unit tests that assert on score values or score ordering
+  3. Creating a version note in the scoring module — a comment or constant indicating the version of the scoring logic in effect
+- Score weight changes that are not documented are considered bugs, not features
+- If a scoring change affects existing stored scores, a re-scoring migration plan must be documented before the change is merged
+
+## Taxonomy Changes
+
+- Do NOT add new canonical skills, topics, or categories without:
+  1. Defining alias mappings — all known alternate names must map to the canonical term
+  2. Updating taxonomy documentation to reflect the new entry
+  3. Creating a DB migration if the taxonomy is persisted in the database
+- Do NOT remove or rename a canonical term without checking for existing opportunities, sources, or reports that reference it — provide a migration path
+- Taxonomy drift (canonical terms that no longer match what sources produce) must be flagged and resolved, not silently tolerated
+
+## Source Additions
+
+- Every new source connector must be documented before or alongside implementation, following the policy in `docs/governance/source-catalog.md`
+- Required documentation per source:
+  - Source name and type (RSS, API, scrape, upload, etc.)
+  - Data fields produced and how they map to internal schema
+  - Update frequency and fetch strategy
+  - Licensing or terms of use considerations
+  - Known quality issues or reliability caveats
+- A source connector that exists in code but is not in `source-catalog.md` is considered undocumented and must not be enabled in production
+
+## Classification and Confidence Changes
+
+- Classification threshold changes (the cutoff at which an item is accepted, flagged, or rejected) require:
+  - A docs update explaining the old threshold, new threshold, and rationale
+  - A test update to cover the boundary conditions of the new threshold
+  - A changelog note
+- Confidence rule changes (how confidence scores are computed or combined) require:
+  - A docs update in the relevant governance doc
+  - A unit test update covering the changed behavior
+
+## Opportunity Lifecycle
+
+- Valid review states are: `surfaced`, `analyst_review`, `approved`, `rejected`, `archived`
+- Do NOT add, remove, or rename lifecycle states without:
+  1. A DB migration if the state is stored as a DB enum or constrained column
+  2. An API schema update — all endpoints that return or accept state must reflect the change
+  3. An admin UI update — state transitions must be operable from the admin interface
+  4. A docs update in the opportunity lifecycle documentation
+- Review states must persist in the database — do NOT store lifecycle state only in memory or only in application cache
+
+## Traceability Requirements
+
+- Every surfaced opportunity must trace to:
+  - The source families that contributed evidence
+  - The specific evidence items (URLs, documents, signals) used
+  - The scoring inputs and computed score outputs
+  - The run identifier and timestamp of the pipeline run that produced it
+  - The generation path — which pipeline stages processed it
+- An opportunity with no provenance must NOT be surfaced to analysts or exported
+- Scoring and source logic must not drift invisibly — if the logic changes, the change must be traceable through docs, version notes, and tests
+
+## Auditability
+
+- Do NOT delete governance documentation — deprecate and archive instead
+- Score run logs must be retained for a period sufficient to explain any stored opportunity score
+- If a re-scoring run replaces previous scores, the old scores and the run that produced them must remain recoverable

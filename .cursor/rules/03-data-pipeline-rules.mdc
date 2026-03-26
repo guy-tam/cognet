@@ -1,0 +1,112 @@
+---
+description: Data pipeline rules — ingestion, normalization, enrichment, taxonomy
+globs: ["services/ingestion/**/*", "services/normalization/**/*", "services/enrichment/**/*", "services/taxonomy/**/*", "apps/api/app/models/**/*"]
+alwaysApply: false
+---
+
+# COGNET LDI Engine — Data Pipeline Rules
+
+## Connector Abstraction
+
+Every data source must be implemented as a **bounded connector** — no ad-hoc fetch logic written directly inside Celery tasks, cron jobs, or orchestration scripts.
+
+Every connector class must define the following interface:
+
+```python
+class BaseConnector(ABC):
+    source_name: str          # Unique identifier, e.g. "linkedin_jobs_il"
+    source_type: str          # Enum: "job_board", "search_trends", "course_catalog", "survey", etc.
+
+    @abstractmethod
+    def fetch(self) -> list[dict]: ...          # Raw external data retrieval
+
+    @abstractmethod
+    def parse(self, raw: list[dict]) -> list[RawRecord]: ...  # Transform to RawRecord schema
+
+    @abstractmethod
+    def on_failure(self, error: Exception) -> None: ...       # Failure handling, alerting, logging
+
+    def metadata(self) -> ConnectorMetadata: ...              # Source-level metadata for lineage
+```
+
+Connectors live in `services/ingestion/connectors/{source_name}.py`. No connector logic outside this directory.
+
+## Raw Record Schema — Non-Negotiable Fields
+
+Every record written to the raw records table MUST include all of the following fields. Records missing any of these must be rejected and logged, not silently stored as partial records:
+
+| Field | Type | Purpose |
+|---|---|---|
+| `source_name` | string | Connector identifier |
+| `source_type` | enum | Categorical source classification |
+| `external_id` | string | Source-side unique identifier |
+| `collected_at` | datetime (UTC) | When the record was fetched |
+| `language_code` | string (ISO 639-1) | Detected or declared language |
+| `country_code` | string (ISO 3166-1) | Geographic origin |
+| `region_code` | string | Sub-national region if available, else null |
+| `payload` | JSONB | Full original payload — never truncated |
+| `checksum` | string (SHA-256) | Hash of payload for deduplication |
+| `source_run_id` | UUID | Links to the ingestion run that produced the record |
+
+The `payload` field must always store the **complete original record** — do not pre-filter fields at ingestion time. Filtering happens at normalization.
+
+## Layer Separation: Raw vs. Normalized
+
+The raw and normalized layers are **separate DB tables and separate pipeline stages**. They must never be collapsed into a single step.
+
+- `raw_records` table: append-only, immutable after write
+- `normalized_records` table: structured output of the normalization stage, with lineage back to `raw_records.id`
+- A normalization job reads from `raw_records` where `normalized = false` and writes to `normalized_records`
+- The `raw_records` row is then marked `normalized = true` with a `normalized_at` timestamp — it is never modified otherwise
+
+## Deduplication
+
+Deduplication must be explicit and documented per source. Two valid strategies:
+
+1. **Checksum-based**: compute SHA-256 of `payload`, reject if checksum already exists for the same `source_name`
+2. **External ID-based**: reject if `(source_name, external_id)` combination already exists
+
+Each connector must document which strategy it uses in a class-level docstring. Mixed strategies across sources are acceptable — undocumented deduplication is not.
+
+## Normalization Output Requirements
+
+Normalized records must:
+- Preserve full lineage: `raw_record_id` foreign key required
+- Use canonical field names (no source-specific naming leaking through)
+- Include `normalized_at` timestamp and `normalizer_version` (string, e.g. `"1.2.0"`)
+- Never infer missing required fields — use `null` and flag the record, do not fabricate values
+
+## Enrichment Rules
+
+Enrichment passes (taxonomy tagging, language detection, skill extraction, region classification) must:
+- Produce **bounded, confidence-aware outputs** — every enrichment field must have an accompanying confidence score (0.0–1.0)
+- Never overstate certainty — if confidence is below threshold, the field value must be `null` or `unresolved`, not a low-confidence guess stored as fact
+- Be versioned — each enrichment output must include `enricher_name` and `enricher_version`
+- Be idempotent — re-running enrichment on the same record with the same version must produce the same output
+- Store results in `enriched_records` or as structured JSON columns on `normalized_records` — not as mutations to `raw_records`
+
+## Taxonomy Rules
+
+- Signal computation must ONLY operate on **canonical taxonomy entities** — no raw, uncontrolled string labels from source payloads
+- Canonical entities are managed in `services/taxonomy/` and stored in the `taxonomy_topics`, `taxonomy_skills`, `taxonomy_roles` tables
+- Every topic, skill, and role label used in signal computation must have a resolvable canonical ID
+- **Alias resolution** must exist for: skills, topics, roles, and industries — many sources use variant names for the same concept
+  - Example: "JS", "JavaScript", "Javascript" → canonical: `skill:javascript`
+  - Alias tables must be maintained in the taxonomy service, not hardcoded in connectors
+- Raw labels that cannot be resolved to a canonical entity must be flagged as `unresolved` and queued for taxonomy review — they must not flow into signal computation
+
+## Pipeline Stage Logging
+
+Every pipeline stage (ingestion, normalization, enrichment, taxonomy tagging, signal computation) must emit structured log entries at:
+
+- **Stage start**: `stage`, `run_id`, `source_name` (if applicable), `input_record_count`
+- **Stage end**: `stage`, `run_id`, `output_record_count`, `duration_ms`, `skipped_count`
+- **Errors**: `stage`, `run_id`, `error_type`, `error_message`, `record_id` (if attributable), `error_count`
+
+## Failure Isolation
+
+Failure in one pipeline stage must not silently corrupt downstream stages:
+- A failed normalization run must NOT write partial normalized records — use transactions, rollback on error
+- A failed enrichment pass must NOT mark records as enriched — `enriched = false` until the full pass succeeds
+- If a single record fails within a batch, log it with `record_id` and continue the batch — do not abort the entire run for a single bad record
+- At the end of a run, emit a summary: total processed, total succeeded, total failed, list of failed `record_id`s

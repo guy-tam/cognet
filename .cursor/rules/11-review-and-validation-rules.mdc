@@ -1,0 +1,74 @@
+---
+description: Review and validation rules — quality gates before phase completion
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# Review and Validation Rules
+
+## Phase Completion Gate
+
+A phase is NOT complete unless ALL of the following are true:
+
+- Required files exist at the specified paths
+- File paths match what is documented and what the code references
+- Contracts between modules are explicit — function signatures, Pydantic schemas, TypeScript interfaces
+- Failure modes are considered — what happens when a dependency is unavailable, a value is null, or a query returns empty
+- Logs are present at appropriate levels for load-bearing operations
+- Tests are present for load-bearing logic — not just happy path
+- Docs are updated to reflect the current state of the implementation
+- The feature or module has a clear integration path — it is wired to something real, not floating in isolation
+
+## Review Checklist
+
+Apply after every major implementation phase:
+
+- Does this code match what the docs describe?
+- Do the docs describe what the code actually does?
+- Are there files referenced in code or docs that do not exist?
+- Are there abstractions defined but never used?
+- Are there classes, modules, or services with no integration path into the running system?
+- Is naming consistent across layers — DB column names, schema field names, API response keys, frontend prop names?
+- Are critical imports coherent — are the right modules importing from the right places, with no circular dependencies?
+- Are tests present for every piece of logic that ranking, scoring, or classification depends on?
+- Do both locale files exist and contain the required keys for any UI work in scope?
+- Is Hebrew RTL structurally supported — not just a future TODO?
+
+## Critique Checklist
+
+Apply when reviewing implementation decisions:
+
+- Is this overengineered for MVP? Would a simpler approach deliver the same outcome?
+- Is this under-specified — is the schema missing, is the contract unclear, is the failure behavior undefined?
+- Is this pretending to be production-ready without being fully wired — mock data, hardcoded responses, disabled routes?
+- Is there fake complexity — layers of abstraction that add indirection without adding value?
+- Is the ranking logic deterministic and explainable — can you trace why a score is what it is?
+- Is evidence handling weak — are opportunities surfaced without traceable source evidence?
+- Is the admin shell useful — does it expose real data and real controls, or is it decorative scaffolding?
+
+## Validation Gates Per Layer
+
+Each layer must pass its own gate before dependent layers are considered complete:
+
+- **Docs**: architecture docs, schema docs, and governance docs exist and are current
+- **Rules**: Cursor rule files exist, are correctly scoped, and reflect actual project decisions
+- **Repo scaffold**: directory structure matches documented layout; no orphaned folders
+- **Backend**: FastAPI routes are registered, schemas are defined, DB models match migrations
+- **Data layers**: SQLAlchemy models match DB schema; migrations are present and reversible; queries are tested
+- **Admin UI**: components are wired to real API endpoints; no mock data in production paths
+- **Localization**: both locale files exist; RTL layout is structurally implemented
+- **Tests**: unit tests cover scoring logic, classification logic, and critical DB queries; integration tests cover API contracts
+
+## Task Done Definition
+
+A task is NOT done until:
+
+- The file exists at the correct path
+- The naming is stable and consistent with the rest of the codebase
+- The contract is explicit — inputs, outputs, and error cases are defined
+- The logic is coherent — no silent failures, no undefined behavior on edge inputs
+- Failure behavior is considered and handled or documented
+- Logging is considered — errors and significant state changes produce log output
+- Tests are considered — load-bearing logic has at least one test
+- Docs are updated — if the task changes behavior, the relevant doc is updated
+- The feature is connected to the real system — not commented out, not gated behind an undocumented flag

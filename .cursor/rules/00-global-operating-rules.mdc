@@ -1,0 +1,71 @@
+---
+description: Global operating rules for all files in the COGNET LDI Engine repository
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# COGNET LDI Engine — Global Operating Rules
+
+## System Identity
+
+This is **COGNET LDI Engine** — a production intelligence platform for learning demand analysis. It is not a demo, not a toy, not a chatbot, and not a prototype playground. Every file generated or modified must belong to the real, integrated architecture.
+
+**Violation check:** If a file has no import path, no schema contract, no API exposure, and no persistence path — it does not belong in this repository.
+
+## Deterministic vs. LLM Logic Boundary
+
+Deterministic logic is the source of truth. It owns:
+- Source state management
+- Raw record normalization
+- Canonical taxonomy mapping
+- Signal computation and aggregation
+- Opportunity ranking and scoring
+- Filtering and threshold enforcement
+- All persisted outputs (scores, rankings, opportunities)
+
+LLM-assisted logic may only support:
+- Summarization of evidence clusters
+- Drafting human-readable rationale for surfaced opportunities
+- Synthesizing qualitative signals from unstructured text
+- Bounded analyst-facing commentary
+
+**Hard rule:** LLM output MUST NEVER silently overwrite or replace a deterministic score, rank, or classification. If LLM output is stored, it must be stored in a separate field clearly marked as LLM-generated, alongside the deterministic value.
+
+## Secrets and Environment Configuration
+
+- No hardcoded secrets anywhere in the repository — no API keys, DB passwords, tokens, or credentials in source files
+- All secrets must use environment variables loaded via `python-dotenv` or equivalent
+- `.env.example` must be kept current — every new env var must be added to `.env.example` with a placeholder value and a comment explaining its purpose
+- `.env` is never committed
+
+## Naming and Consistency
+
+- Name entities, fields, endpoints, and models consistently from the moment of creation
+- Renaming any canonical name (domain, model, field, enum value, endpoint) requires: updating all references in code, contracts, schemas, migration files, and documentation in the same commit
+- Do not create aliases or shadow names to avoid updating references
+
+## Synchronization of Code, Docs, and Contracts
+
+- If the architecture changes, the relevant `.mdc` rule file and any affected `docs/` files must change in the same PR
+- API contracts (request/response schemas) must stay in sync with the actual FastAPI route definitions
+- DB models must stay in sync with Alembic migration files — no unapplied schema drift
+
+## Build Order Discipline
+
+- Build a minimal working version before expanding scope
+- A feature is not shippable until it is: implemented, connected to its domain, logged, and has at least a smoke test for its load-bearing path
+- Do not scaffold 10 modules before any one module is functional end-to-end
+
+## Observability
+
+- Use structured logging (JSON-format via `structlog` or equivalent) everywhere
+- `print()` is not an observability strategy — it is not allowed as a substitute for logging in any production code path
+- Every log entry must include at minimum: `timestamp`, `level`, `module`, `run_id` (where applicable), `message`
+- Errors must be logged with full exception context — not just the message string
+
+## Bilingual Scope
+
+- Bilingual (EN + HE) requirement applies **only** to the admin UI (`/apps/admin`)
+- All code, API field names, database column names, enum values, log keys, and contract field names stay in **English only**
+- Translation keys follow the pattern `namespace.key` and are stored in `/apps/admin/locales/{en,he}/`
+- RTL layout must be applied when the active locale is Hebrew — do not assume LTR as universal

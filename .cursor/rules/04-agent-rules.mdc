@@ -1,0 +1,117 @@
+---
+description: Agent system rules — bounded specialist components
+globs: ["services/agents/**/*"]
+alwaysApply: false
+---
+
+# COGNET LDI Engine — Agent System Rules
+
+## What Agents Are
+
+Agents in COGNET are **bounded specialist components** — each one performs a specific, scoped analytical task using a combination of deterministic logic and (optionally) LLM assistance. They are not autonomous agent swarms, they do not self-direct, and they do not chain tool calls freely. They receive typed inputs and return typed outputs.
+
+## Required Agent Class Contract
+
+Every agent class must define the following at the class level, enforced via docstring or a static `metadata()` method:
+
+```python
+class BaseAgent(ABC):
+    # Required class-level declarations:
+    purpose: str              # One sentence: what this agent computes and why
+    ownership: str            # Which domain owns this agent (e.g., "signals", "ranking")
+    dependencies: list[str]   # Services or data sources this agent depends on
+    non_goals: list[str]      # Explicit list of what this agent does NOT do
+
+    @abstractmethod
+    def run(self, input: AgentInput) -> AgentOutput: ...
+
+    # Input and output must always be typed Pydantic models — no dict, no Any
+```
+
+A class that does not define `purpose`, `non_goals`, and typed `inputs`/`outputs` is not a valid agent and must not be invoked by orchestration.
+
+## LLM-Assisted Agent Requirements
+
+For any agent that calls an LLM, the following behaviors are mandatory:
+
+- **Output schema validation**: LLM response must be parsed against a Pydantic model. If parsing fails, the agent must retry (up to configured max retries) before falling back.
+- **Retry on parse failure**: implement retry with backoff on JSON parse errors or schema validation errors — not on every exception type
+- **Timeout enforcement**: every LLM call must have an explicit timeout (configurable via env var, default ≤ 30s). A timed-out LLM call is treated as a failure, not a hang.
+- **Fallback on LLM failure**: if LLM call fails after retries or times out, the agent must return a deterministic fallback result — not raise an unhandled exception and not return `None`. The fallback result must be marked with `llm_used: false` and `fallback_reason: str`.
+- **No silent LLM substitution**: LLM output fields in the agent result must be clearly distinguished from deterministic fields. Never merge them into the same field without provenance.
+
+## Output Schema Binding
+
+Agent output consumed by any other system (orchestration, ranking, opportunity construction) must be a **Pydantic model defined in `shared/contracts/agents/`**. No agent may return a raw `dict` to a consumer.
+
+```
+shared/contracts/agents/
+├── trend_analysis.py        # TrendAnalysisAgentInput, TrendAnalysisAgentOutput
+├── job_demand.py            # JobDemandAgentInput, JobDemandAgentOutput
+├── skill_gap.py             # SkillGapAgentInput, SkillGapAgentOutput
+└── topic_prioritization.py  # TopicPrioritizationAgentInput, TopicPrioritizationAgentOutput
+```
+
+## MVP Operational Agents
+
+The following agents are **operational in MVP** — they must be implemented, tested, and integrated into the orchestration pipeline:
+
+| Agent | Purpose |
+|---|---|
+| `TrendAnalysisAgent` | Analyze trend signal strength for a topic across time windows |
+| `JobDemandAgent` | Assess job posting volume and velocity for a skill/role/topic |
+| `SkillGapAgent` | Identify gaps between demanded skills and current course supply |
+| `TopicPrioritizationAgent` | Synthesize multi-signal evidence into a prioritization recommendation |
+
+## Scaffold-Only Agents (Not Operational in MVP)
+
+The following agents may be scaffolded (class defined, inputs/outputs typed, `non_goals` declared) but must **not** be wired into orchestration or called from any production code path in MVP:
+
+- `MarketResearchAgent`
+- `RegionCultureFitAgent`
+- `LearningOpportunityAgent`
+- `ConsistencyValidationAgent`
+
+Scaffold-only agents must include a module-level comment: `# SCAFFOLD ONLY — not operational in MVP. Do not invoke from orchestration.`
+
+## Agent Boundaries — What Agents Must NOT Do
+
+- **Must NOT replace ranking logic**: agents produce evidence and supporting signals — the ranking service computes scores and ranks from that evidence using deterministic logic
+- **Must NOT perform canonical taxonomy mapping**: taxonomy resolution (alias → canonical entity) is the exclusive responsibility of `services/taxonomy/`. Agents receive pre-resolved canonical entities as input.
+- **Must NOT write directly to the database**: agents return outputs to the caller — persistence is handled by the orchestration layer or the relevant domain service
+- **Must NOT call other agents directly**: agent-to-agent calls must route through the orchestration layer, not be hardcoded as internal method calls
+
+## MVP Orchestration Pattern
+
+For MVP, agent orchestration is **simple sequential** — one agent runs, its output is passed to the next, no parallelism, no event-driven pipeline:
+
+```python
+# MVP orchestration pattern — do not introduce async pipelines or queues
+trend_output = TrendAnalysisAgent().run(input)
+job_output = JobDemandAgent().run(input)
+skill_output = SkillGapAgent().run(input)
+priority_output = TopicPrioritizationAgent().run(
+    trend=trend_output,
+    job_demand=job_output,
+    skill_gap=skill_output,
+)
+```
+
+Do not introduce Celery chains, event-driven agent triggers, or async agent pipelines until sequential orchestration is fully functional and tested.
+
+## Agent Invocation Logging
+
+Every agent invocation must produce a structured log entry containing:
+
+| Field | Type | Description |
+|---|---|---|
+| `agent_name` | string | Class name of the agent |
+| `run_id` | UUID | Pipeline run identifier |
+| `input_summary` | object | Key input parameters (not full payload — avoid logging PII or large blobs) |
+| `output_summary` | object | Key output values (classification, confidence, top signals) |
+| `duration_ms` | int | Wall-clock time for the full agent run |
+| `llm_used` | bool | Whether an LLM call was made |
+| `fallback_triggered` | bool | Whether the deterministic fallback was used |
+| `error` | string or null | Error message if agent run failed |
+
+This log entry must be emitted whether the agent succeeds or fails — it is the audit trail for agent behavior across pipeline runs.

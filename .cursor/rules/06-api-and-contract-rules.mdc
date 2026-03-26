@@ -1,0 +1,106 @@
+---
+description: API and contract rules — FastAPI endpoints, Pydantic schemas, versioning
+globs: ["apps/api/**/*", "shared/contracts/**/*", "shared/schemas/**/*"]
+alwaysApply: false
+---
+
+# API and Contract Rules
+
+## Versioning
+
+- All API routes must be prefixed with `/v1/`.
+- Future breaking changes introduce `/v2/` — do not make breaking changes in place.
+- Never expose unversioned routes except `/health` and `/ready`.
+
+## Endpoint Definition Requirements
+
+Every endpoint must explicitly define all of the following before implementation is considered complete:
+
+1. Route path and HTTP method
+2. Request schema (Pydantic model) — even if empty for GET requests
+3. Response schema (Pydantic model)
+4. All possible error states with their HTTP status codes
+5. Pagination contract, if the endpoint returns a list
+
+## Required Endpoints
+
+The following endpoints are mandatory and must exist in any deployable build:
+
+| Method | Path                            | Description                                 |
+|--------|---------------------------------|---------------------------------------------|
+| GET    | `/health`                       | Liveness probe — no DB required             |
+| GET    | `/ready`                        | Readiness probe — checks DB, Redis, pipeline |
+| GET    | `/v1/opportunities`             | Paginated list of all opportunities          |
+| GET    | `/v1/opportunities/top`         | Top-ranked opportunities across all markets |
+| GET    | `/v1/opportunities/by-market`   | Opportunities filtered by market/country    |
+| GET    | `/v1/pipeline/status`           | Recent pipeline run summaries                |
+
+## Opportunity Response Schema
+
+Every response representing an opportunity object MUST include all of the following fields:
+
+- `topic_id` — stable UUID for the topic
+- `canonical_topic_name` — normalized topic name (English)
+- `country_code` — ISO 3166-1 alpha-2
+- `language_code` — BCP 47 language tag
+- `audience_segment` — e.g., `beginner`, `professional`, `enterprise`
+- `recommended_format` — e.g., `course`, `bootcamp`, `short_video`
+- `opportunity_score` — total weighted score, float 0.0–1.0
+- `score_breakdown` — dict of per-family scores
+- `why_now_summary` — LLM-generated narrative, string
+- `evidence` — list of evidence item objects
+- `confidence_score` — float 0.0–1.0
+- `classification` — one of: `immediate`, `near_term`, `watchlist`, `low_priority`, `rejected`
+- `created_at` — ISO 8601 datetime
+- `run_id` — UUID of the pipeline run that produced this record
+
+Do not omit any field. Use `None` with the appropriate optional type if the value is not available.
+
+## Error Response Format
+
+All error responses must follow this exact envelope:
+
+```json
+{
+  "error": {
+    "code": "OPPORTUNITY_NOT_FOUND",
+    "message": "No opportunity found for the given topic_id.",
+    "request_id": "req_abc123"
+  }
+}
+```
+
+- `code` must be a stable, uppercase string constant — not a raw exception class name.
+- `message` is human-readable.
+- `request_id` must be injected from the request context (middleware or dependency).
+
+## Pagination
+
+- All list endpoints use cursor-based pagination — no offset/limit pagination.
+- Response envelopes for lists must include: `data`, `next_cursor`, `prev_cursor`, `total_count` (if cheaply available).
+- Maximum `page_size` is 100. Requests exceeding this must return HTTP 400.
+- Cursor values are opaque strings — clients must not parse or construct them.
+
+## Schema Discipline
+
+- Never return raw SQLAlchemy model instances from route handlers — always serialize through a Pydantic response schema.
+- Never duplicate schema definitions across modules — all shared contracts live in `/shared/contracts/`.
+- If a schema is used by both the API and a Celery task, it belongs in `/shared/contracts/`, not in either service.
+
+## Dependency Injection
+
+- Database sessions must be injected via FastAPI dependency: `Depends(get_db_session)`.
+- Application settings must be injected via `Depends(get_settings)`.
+- All reusable dependencies live in `/apps/api/app/dependencies/`.
+- Do not access `db` or `settings` directly from route handler bodies without using the dependency system.
+
+## Router Registration
+
+- All routers are registered in the app factory function — no routers that self-register by side effect.
+- Router files define routes only — no business logic in router files.
+
+## Admin Frontend API Access
+
+- The admin frontend (`/apps/admin/`) must access the backend exclusively through `/apps/admin/lib/api-client.ts`.
+- Never use raw `fetch()` or `axios` calls directly inside React components — always go through the typed API client.
+- The API client must be typed end-to-end against the Pydantic response schemas (use generated types or manually maintained interfaces).

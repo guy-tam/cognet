@@ -1,0 +1,87 @@
+---
+description: Ranking and scoring rules — deterministic, explainable, auditable
+globs: ["services/ranking/**/*", "services/signals/**/*", "services/opportunities/**/*"]
+alwaysApply: false
+---
+
+# Ranking and Scoring Rules
+
+## Determinism
+
+- ALL score computation must be deterministic — given the same inputs, the function must produce the same outputs every time, with no randomness, no timestamp-seeded logic, and no model sampling in scoring paths.
+- Scoring functions must be pure functions: output depends only on arguments, not on global state or external I/O.
+
+## Score Families
+
+All scores are floats in the range `0.0–1.0`. The following score families are defined and must not be renamed without updating all references in code, schemas, and docs:
+
+- `demand_score` — volume and intensity of observed learning demand signals
+- `growth_score` — trajectory of demand over time (rising, flat, declining)
+- `job_market_score` — strength of labor market signals for this topic
+- `trend_score` — short-term momentum from trend data sources
+- `content_gap_score` — ratio of demand to existing content supply
+- `localization_fit_score` — suitability of this topic for the target market and language
+- `teachability_score` — feasibility of delivering this topic as a structured course
+- `strategic_fit_score` — alignment with platform or operator priorities
+- `confidence_score` — aggregate reliability of the evidence backing this opportunity
+
+## Total Opportunity Score
+
+- `total_opportunity_score` = weighted sum of all applicable score families.
+- Weights for each family are defined in `docs/scoring-governance.md` and loaded from application config — no hardcoded weight literals in business logic.
+- Score weights must be configurable at runtime via settings/config layer without code changes.
+- Do not embed magic numbers (e.g., `0.25`, `0.15`) directly in scoring functions — reference named config keys.
+
+## Transparency Requirements
+
+- NEVER hide scoring logic behind vague AI-generated summaries or black-box explanations.
+- Every computed opportunity score MUST include a `score_breakdown` dict with per-component values, e.g.:
+  ```json
+  {
+    "demand_score": 0.82,
+    "growth_score": 0.74,
+    "job_market_score": 0.65,
+    ...
+  }
+  ```
+- LLM calls may only produce `why_now_summary` (narrative explanation) and `evidence_synthesis` (qualitative summary of sources). LLMs must NEVER produce numerical scores, weights, or classifications.
+
+## Classification Thresholds
+
+Classify every opportunity into exactly one tier based on `total_opportunity_score`:
+
+| Classification  | Score Range     |
+|-----------------|-----------------|
+| `immediate`     | ≥ 0.80          |
+| `near_term`     | 0.65 – 0.79     |
+| `watchlist`     | 0.50 – 0.64     |
+| `low_priority`  | 0.35 – 0.49     |
+| `rejected`      | < 0.35          |
+
+Thresholds are defined in config — not hardcoded in classification logic.
+
+## Confidence Downgrade Rules
+
+Apply the following penalties to `confidence_score` when evidence quality is insufficient:
+
+- Fewer than 2 distinct source families contributing → subtract `0.15`
+- Fewer than 3 total evidence items → subtract `0.10`
+- All evidence from a single source type (e.g., only search data) → subtract `0.20`
+
+Penalties are additive. Confidence score floor is `0.0`.
+
+## Required Fields on Every Opportunity Brief
+
+Every opportunity object emitted by the ranking service MUST carry:
+
+- `total_score` — final weighted score
+- `score_breakdown` — per-family score dict
+- `confidence_score` — adjusted confidence after downgrade rules
+- `classification` — one of the five tiers above
+- `run_id` — identifier of the pipeline run that produced this record
+
+## Testability
+
+- The ranking engine must be fully unit-testable in isolation — no database dependency, no network calls, no Celery context required for pure scoring logic.
+- Scoring functions must accept plain Python dicts or dataclasses — not ORM model instances.
+- Tests live in `/tests/unit/ranking/`.

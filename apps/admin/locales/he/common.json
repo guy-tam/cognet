@@ -1,0 +1,89 @@
+{
+  "nav": {
+    "dashboard": "לוח בקרה",
+    "opportunities": "הזדמנויות",
+    "pipeline": "סטטוס Pipeline",
+    "settings": "הגדרות"
+  },
+  "dashboard": {
+    "title": "מודיעין ביקוש ללמידה",
+    "subtitle": "COGNET LDI Engine — כלי פנימי",
+    "total_opportunities": "סה\"כ הזדמנויות",
+    "pipeline_status": "סטטוס Pipeline",
+    "last_run": "הרצה אחרונה",
+    "top_opportunities": "הזדמנויות מובילות"
+  },
+  "opportunities": {
+    "title": "הזדמנויות",
+    "filters": "סינון",
+    "country": "מדינה",
+    "language": "שפה",
+    "classification": "סיווג",
+    "min_score": "ציון מינימלי",
+    "apply_filters": "החל סינון",
+    "reset": "איפוס",
+    "topic": "נושא",
+    "score": "ציון",
+    "confidence": "רמת ביטחון",
+    "format": "פורמט",
+    "market": "שוק",
+    "created": "נוצר",
+    "view_details": "צפה בפרטים",
+    "no_opportunities": "לא נמצאו הזדמנויות",
+    "no_opportunities_hint": "נסה לשנות את הסינון או הרץ את ה-Pipeline כדי לייצר הזדמנויות.",
+    "score_breakdown": "פירוט ציון",
+    "evidence": "ראיות",
+    "why_now": "למה עכשיו",
+    "lifecycle_state": "סטטוס",
+    "classification_labels": {
+      "immediate": "מיידי",
+      "near_term": "קרוב מועד",
+      "watchlist": "מעקב",
+      "low_priority": "עדיפות נמוכה",
+      "rejected": "נדחה",
+      "archived": "בארכיון"
+    }
+  },
+  "scores": {
+    "demand": "ביקוש",
+    "growth": "צמיחה",
+    "job_market": "שוק עבודה",
+    "trend": "מגמה",
+    "content_gap": "פער תוכן",
+    "localization_fit": "התאמה לשוק",
+    "teachability": "ניתן להוראה",
+    "strategic_fit": "התאמה אסטרטגית",
+    "total": "ציון כולל",
+    "confidence": "ביטחון"
+  },
+  "pipeline": {
+    "title": "סטטוס Pipeline",
+    "run_id": "מזהה הרצה",
+    "started": "התחיל",
+    "ended": "הסתיים",
+    "status": "סטטוס",
+    "steps": "שלבים",
+    "errors": "שגיאות",
+    "no_runs": "לא נמצאו הרצות pipeline",
+    "status_labels": {
+      "pending": "ממתין",
+      "running": "רץ",
+      "completed": "הושלם",
+      "failed": "נכשל",
+      "partial": "חלקי"
+    }
+  },
+  "common": {
+    "loading": "טוען...",
+    "error": "אירעה שגיאה",
+    "retry": "נסה שנית",
+    "back": "חזרה",
+    "close": "סגור",
+    "unknown": "לא ידוע",
+    "na": "לא רלוונטי"
+  },
+  "locale": {
+    "switch_to_he": "עברית",
+    "switch_to_en": "English"
+  }
+}

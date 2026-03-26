@@ -1,0 +1,91 @@
+---
+description: Product and system identity rules — what this system is and is not
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# COGNET LDI Engine — Product and System Identity Rules
+
+## What This System Is
+
+COGNET LDI Engine is an **intelligence layer** that analyzes learning demand signals and surfaces prioritized opportunities for course creation or curriculum investment. It sits upstream of the course platform — it does not replace it.
+
+## Hard Boundaries — What This System Is NOT
+
+- **NOT** the course platform itself — do not build enrollment flows, course content, or learner-facing pages
+- **NOT** a static data report — do not produce hardcoded demo datasets as the core output
+- **NOT** an LLM recommendation engine — ranking is deterministic, LLM output is supporting evidence only
+- **NOT** a public consumer-facing product — the admin panel is internal tooling only; no public routes
+
+## Opportunity Data Contract
+
+Every surfaced opportunity object MUST include all of the following fields — partial opportunity objects must not be surfaced to the API or admin UI:
+
+| Field | Type | Requirement |
+|---|---|---|
+| `topic` | string | Canonical taxonomy label |
+| `market_context` | object | Region, language, industry context |
+| `language_context` | object | Primary language, RTL flag, locale |
+| `score_breakdown` | object | Per-signal score components, not a single opaque number |
+| `evidence` | array | Source records or signal clusters supporting the score |
+| `why_now_summary` | string | LLM-drafted, human-readable rationale (clearly marked) |
+| `confidence` | float | 0.0–1.0, derived from signal coverage and source quality |
+| `classification` | enum | One of the six canonical classification labels |
+| `run_id` | UUID | Links opportunity to the pipeline run that produced it |
+
+Any opportunity missing a required field must be held in `draft` state and must not advance in the lifecycle.
+
+## Opportunity Lifecycle
+
+State transitions are strictly ordered and must be enforced at the API layer:
+
+```
+draft → surfaced → analyst_review → approved → rejected → archived
+```
+
+- `draft`: incomplete or unvalidated — not visible in admin UI opportunity list
+- `surfaced`: passed validation, ready for analyst review
+- `analyst_review`: analyst has opened the record — no edits committed yet
+- `approved`: analyst confirmed — eligible for downstream consumption
+- `rejected`: analyst rejected — stored with rejection reason, not deleted
+- `archived`: approved opportunity that is past its relevance window or superseded
+
+**Rules:**
+- State must only advance forward, except `approved → archived` and `rejected → archived`
+- State transitions must be logged with: `from_state`, `to_state`, `actor`, `timestamp`, `run_id`
+- Bulk state changes must be audited — no silent mass updates
+
+## Classification Labels
+
+Valid classification values (enum, enforced in code and DB):
+
+- `immediate` — strong signal, high confidence, act now
+- `near_term` — solid signal, moderate confidence, plan within cycle
+- `watchlist` — emerging signal, low confidence, monitor
+- `low_priority` — weak signal, deprioritize but retain
+- `rejected` — evaluated and dismissed, with documented reason
+- `archived` — no longer actionable, retained for audit trail
+
+Classification must be computed deterministically from score thresholds — it must not be assigned by LLM output directly.
+
+## Admin Panel Requirements
+
+- Internal bilingual tool — English and Hebrew must both be fully functional, not cosmetically translated
+- Every user-facing string in the admin panel must have a translation key in both `/locales/en/` and `/locales/he/`
+- Hebrew locale must render with RTL layout — use `dir="rtl"` on the root element and test layout in RTL
+- No admin page may display raw database IDs as the primary identifier in any UI label
+- Analyst actions (approve, reject, archive, comment) must be confirmed before commit — no single-click destructive actions
+
+## MVP First Flow — Build Order
+
+The following is the required build order. Do not begin a later stage before the prior stage produces real, integrated output:
+
+1. **Ingest** — at least one live connector producing raw records to DB
+2. **Normalize** — raw records mapped to normalized schema with lineage preserved
+3. **Enrich** — at least one enrichment pass (taxonomy tagging, language detection)
+4. **Signal** — signal computation from normalized/enriched records
+5. **Rank** — deterministic ranking of topics by aggregated signal scores
+6. **Opportunity** — opportunity objects constructed from ranked topics with full required fields
+7. **API** — opportunity data exposed via versioned FastAPI endpoints
+8. **Admin UI** — opportunities visible and actionable in internal admin panel
+9. **Bilingual** — EN and HE both functional in admin UI with RTL for Hebrew

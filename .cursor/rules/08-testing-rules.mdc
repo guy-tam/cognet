@@ -1,0 +1,69 @@
+---
+description: Testing rules — what must be tested and how
+globs: ["tests/**/*", "apps/api/app/tests/**/*"]
+alwaysApply: false
+---
+
+# Testing Rules
+
+## Philosophy
+
+- Test load-bearing logic first — score computation, data normalization, schema validation, and critical API contracts.
+- Do not write tests to inflate coverage percentages. A test with a meaningful assertion is worth more than ten tests that only check that a function returns without raising.
+- No empty test stubs, no `assert True`, no `pass` bodies in test functions.
+
+## Required Unit Tests
+
+The following unit tests are mandatory and must pass in CI:
+
+- **Ranking engine — score computation correctness**: Given a fixed signal vector, assert that each score family produces the expected float value.
+- **Ranking engine — score breakdown structure**: Assert that `score_breakdown` contains all required family keys and all values are in range `[0.0, 1.0]`.
+- **Ranking engine — confidence downgrade logic**: Assert each downgrade trigger reduces `confidence_score` by the documented amount.
+- **Ranking engine — classification thresholds**: Assert that scores at and around threshold boundaries produce the correct classification tier.
+- **Normalization helpers**: Test text cleanup functions (whitespace, casing, punctuation), canonical topic name mapping, and language normalization.
+- **Signal vector validation**: Assert that malformed or incomplete signal vectors raise validation errors before reaching the scoring layer.
+- **Opportunity schema validation**: Assert that a valid opportunity dict passes Pydantic schema validation, and that missing required fields raise `ValidationError`.
+
+## Required Integration Tests
+
+The following integration tests are mandatory and must pass in CI against a running test database:
+
+- `GET /health` returns HTTP 200 with `{"status": "ok"}` and a `timestamp` field.
+- `GET /v1/opportunities` returns HTTP 200 with a valid response envelope including `data`, `next_cursor`, and `total_count`.
+- At least one filter on `GET /v1/opportunities` (e.g., `country_code` or `classification`) returns a narrowed result set.
+- `GET /v1/opportunities` response items each contain all required opportunity fields (see API contract rules).
+
+## Required Structural Tests
+
+The following structural tests verify bilingual and RTL correctness:
+
+- Localization key presence: assert that all translation keys present in the English (`en`) locale file also exist in the Hebrew (`he`) locale file, and vice versa.
+- RTL layout: assert that the HTML root element or layout wrapper carries `dir="rtl"` when the active locale is Hebrew.
+
+## Test File Locations
+
+| Test type    | Location                        |
+|--------------|---------------------------------|
+| Unit tests   | `/tests/unit/`                  |
+| Integration  | `/tests/integration/`           |
+| E2E tests    | `/tests/e2e/`                   |
+
+Do not place test files in application source directories except where framework convention requires it (e.g., route-level test colocated with the route is acceptable if documented).
+
+## Ranking Engine Test Isolation
+
+- Ranking engine unit tests must be pure Python — no database session, no Redis connection, no Celery task context, no network calls.
+- Pass signal data as plain dicts or dataclasses. Do not instantiate ORM models in unit tests.
+- Mocking external dependencies is acceptable in integration tests; it is a smell in unit tests for pure scoring logic (fix the function instead).
+
+## Tooling
+
+- Backend tests: `pytest`
+- Async route tests: `pytest-asyncio`
+- FastAPI integration tests: `httpx.AsyncClient` with `ASGITransport` — do not spin up a live server for integration tests.
+- Test database: use a separate PostgreSQL database or an in-memory SQLite fallback only if explicitly documented as acceptable for the test in question.
+
+## Documentation
+
+- All test commands (run unit, run integration, run e2e, run with coverage) must be documented in the project `README.md`.
+- CI must run at minimum unit tests and integration tests on every pull request.

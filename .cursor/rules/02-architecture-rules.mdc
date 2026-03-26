@@ -1,0 +1,100 @@
+---
+description: Architecture rules for the COGNET LDI Engine modular monolith
+globs: ["apps/**/*", "services/**/*", "shared/**/*"]
+alwaysApply: false
+---
+
+# COGNET LDI Engine — Architecture Rules
+
+## Architectural Pattern: Modular Monolith
+
+This is a **modular monolith** — one deployable unit with enforced internal domain boundaries. It is not microservices. Do not introduce service meshes, message buses between domains, inter-service HTTP calls, or distributed transaction patterns before the MVP first flow is end-to-end functional.
+
+If a refactor toward service extraction is considered, that decision must be explicitly documented and approved — it is not an incidental implementation choice.
+
+## Directory Structure — Canonical Domain Layout
+
+```
+cognet/
+├── apps/
+│   ├── api/                        # FastAPI application
+│   │   └── app/
+│   │       ├── models/             # SQLAlchemy ORM models (single source of truth for DB schema)
+│   │       ├── routers/            # Route definitions — thin, delegate to services
+│   │       ├── dependencies/       # FastAPI dependency injection
+│   │       └── main.py
+│   └── admin/                      # Next.js admin UI
+│       ├── locales/
+│       │   ├── en/
+│       │   └── he/
+│       ├── components/
+│       ├── pages/ (or app/)
+│       └── lib/api/                # Typed API client — all backend calls go here
+├── services/                       # Domain service logic (no FastAPI imports)
+│   ├── ingestion/
+│   ├── normalization/
+│   ├── enrichment/
+│   ├── taxonomy/
+│   ├── signals/
+│   ├── agents/
+│   ├── ranking/
+│   ├── opportunities/
+│   ├── orchestration/
+│   ├── observability/
+│   ├── localization/
+│   ├── governance/
+│   └── evaluation/
+└── shared/
+    ├── contracts/                  # Request/response schemas (Pydantic)
+    ├── schemas/                    # Internal data transfer schemas
+    ├── enums/                      # Shared enumerations
+    └── models/                     # Shared base model utilities
+```
+
+## Import Rules — Enforced Boundaries
+
+| From | May import | Must NOT import |
+|---|---|---|
+| `apps/api/` | `services/**`, `shared/**` | nothing from `apps/admin/` |
+| `apps/admin/` | `apps/admin/lib/api/` (typed client only) | `services/**` directly, `apps/api/` directly |
+| `services/**` | `shared/**`, other `services/**` with explicit justification | `apps/api/`, `apps/admin/` |
+| `shared/**` | stdlib, third-party only | `apps/**`, `services/**` |
+
+**Cross-domain service imports** (e.g., `signals` importing from `ingestion`) must be documented with a comment explaining the dependency. If two domains are heavily coupled, they may need to be merged into one.
+
+## API Layer Rules
+
+- Routers in `apps/api/app/routers/` must be **thin** — route handlers call service functions, they do not contain business logic
+- All request and response schemas must be defined as Pydantic models in `shared/contracts/`
+- API versioning: prefix all routes with `/v1/` from the start — do not add versioning retroactively
+- Every route must have: response model declared, status codes declared, docstring with purpose
+- Authentication and authorization must be handled via FastAPI dependencies — not inline in route handlers
+
+## Database and ORM Rules
+
+- SQLAlchemy models live exclusively in `apps/api/app/models/` — this is the single source of truth for the DB schema
+- Services access the database via a **repository pattern** — no raw SQLAlchemy session calls scattered in service logic
+- Every repository class must be in `services/{domain}/repository.py` and accept a `session` dependency
+- Alembic migration files must be generated from model changes — no hand-written migrations that diverge from models
+- Every migration must have a descriptive message: `alembic revision --autogenerate -m "add_opportunity_classification_index"`
+
+## Admin UI Rules
+
+- All backend calls from `apps/admin/` must go through `apps/admin/lib/api/` — no scattered `fetch()` or `axios` calls in components or pages
+- The typed API client must match the `shared/contracts/` schemas — if the contract changes, the client must be updated in the same PR
+- No hardcoded backend URLs in components — use environment variables (`NEXT_PUBLIC_API_URL`)
+
+## Completeness Requirement
+
+A feature is only considered complete when ALL of the following exist:
+
+1. Domain service logic in `services/{domain}/`
+2. Pydantic contract in `shared/contracts/` (if externally consumed)
+3. Repository method in `services/{domain}/repository.py` (if DB access needed)
+4. API route in `apps/api/app/routers/` (if surfaced externally)
+5. Structured logging at entry, exit, and failure points
+6. Explicit failure handling — no bare `except: pass` or silent swallowing of errors
+7. Alembic migration (if new DB schema)
+8. At minimum, a smoke test covering the happy path
+
+A disconnected class with no integration = incomplete. A documented feature with no code = incomplete.

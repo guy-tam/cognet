@@ -1,0 +1,98 @@
+---
+description: Observability rules — structured logging, health, pipeline visibility
+globs: ["apps/api/**/*", "services/**/*"]
+alwaysApply: false
+---
+
+# Observability Rules
+
+## Structured Logging
+
+- Use `structlog` (or an equivalent structured logging library) throughout the backend — never use `print()` for observability purposes.
+- Every log entry must include at minimum: `timestamp`, `level`, `module`, `message`.
+- Log output must be machine-parseable (JSON format in production, human-readable in development).
+- Do not construct log strings via f-string concatenation — pass structured key-value pairs to the logger.
+
+## Pipeline Stage Logs
+
+Every log entry emitted at a pipeline stage boundary must include:
+
+- `run_id` — UUID of the current pipeline run
+- `stage_name` — name of the pipeline stage (e.g., `fetch_signals`, `normalize`, `rank`)
+- `record_count` — number of records processed in this stage
+- `error_count` — number of records that failed processing
+- `duration_ms` — wall-clock time for the stage in milliseconds
+
+Log at `INFO` level on success, `WARNING` if error_count > 0, `ERROR` if the stage aborted.
+
+## Job Logs
+
+Every Celery job or scheduled task must log on start and completion with:
+
+- `job_name` — task name as registered with Celery
+- `run_id` — pipeline run identifier
+- `started_at` — ISO 8601 datetime
+- `ended_at` — ISO 8601 datetime
+- `status` — `success`, `failed`, or `partial`
+- `error_summary` — brief description of failures if `status != success`
+
+## Exception Logs
+
+When catching and logging exceptions, always include:
+
+- Exception type (class name)
+- Exception message
+- Full stack trace (use `exc_info=True` or structlog's exception handling)
+- Context dict with relevant identifiers (e.g., `topic_id`, `run_id`, `source_name`)
+
+Do not swallow exceptions silently — either re-raise or log with full context and mark the record as failed.
+
+## Health and Readiness Endpoints
+
+### GET /health
+
+- Returns HTTP 200 with `{"status": "ok", "timestamp": "<ISO 8601>"}`.
+- Must NOT require database connectivity — this is a pure liveness probe.
+- Must respond in under 100ms under all conditions.
+- Used by load balancers and container orchestrators.
+
+### GET /ready
+
+- Returns HTTP 200 only when the service is ready to handle requests.
+- Must verify and report on:
+  - Database connectivity (can execute a trivial query)
+  - Redis connectivity (can ping)
+  - Last pipeline run summary (timestamp, status, record counts)
+  - Any critical configuration errors detected at startup
+- Returns HTTP 503 if any critical dependency is unavailable.
+- Response body must include per-dependency status, not just a top-level boolean.
+
+## Pipeline Status Endpoint
+
+- `GET /v1/pipeline/status` must return a list of recent pipeline runs.
+- Each run entry must include: `run_id`, `started_at`, `ended_at`, `status`, per-stage summaries (stage name, record count, error count, duration).
+- This endpoint is the primary operator visibility surface for pipeline health — keep it accurate and up to date.
+
+## MVP Scope Constraint
+
+- Do not implement full OpenTelemetry instrumentation (traces, metrics exporters) in the MVP.
+- Design log and context structures so that OTel can be added later without restructuring log calls (use bound loggers with context vars that map cleanly to OTel span attributes).
+- No Prometheus metrics endpoint required in MVP — but do not make it structurally impossible to add one.
+
+## Performance Discipline
+
+- Do not emit per-record log entries inside processing loops — log summaries at stage boundaries.
+- If you need per-record debug output, gate it behind a `DEBUG` level check or a feature flag.
+- Expensive serialization (e.g., formatting large dicts) must not happen unless the log level is active.
+
+## Startup Logs
+
+At application startup, the following must be logged at `INFO` level and confirmed:
+
+- Settings loaded (log config source, not secrets)
+- Database connection established
+- Redis connection established
+- All routers registered (list of route prefixes)
+- Any critical warnings (e.g., missing optional config, degraded mode)
+
+Startup must fail fast with a clear `ERROR` log if a required dependency is unreachable.

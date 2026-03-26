@@ -1,0 +1,20 @@
+# COGNET LDI Engine — Database Migrations
+
+## Commands
+
+# Create new migration (auto-generate from models)
+alembic revision --autogenerate -m "description"
+
+# Apply migrations
+alembic upgrade head
+
+# Downgrade one step
+alembic downgrade -1
+
+# View migration history
+alembic history
+
+## Notes
+- Always review auto-generated migrations before applying
+- Run from /infra/ directory or set PYTHONPATH appropriately
+- Ensure DATABASE_URL environment variable is set

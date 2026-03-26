@@ -1,0 +1,89 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "opportunities": "Opportunities",
+    "pipeline": "Pipeline Status",
+    "settings": "Settings"
+  },
+  "dashboard": {
+    "title": "Learning Demand Intelligence",
+    "subtitle": "COGNET LDI Engine — Internal Tool",
+    "total_opportunities": "Total Opportunities",
+    "pipeline_status": "Pipeline Status",
+    "last_run": "Last Run",
+    "top_opportunities": "Top Opportunities"
+  },
+  "opportunities": {
+    "title": "Opportunities",
+    "filters": "Filters",
+    "country": "Country",
+    "language": "Language",
+    "classification": "Classification",
+    "min_score": "Min Score",
+    "apply_filters": "Apply Filters",
+    "reset": "Reset",
+    "topic": "Topic",
+    "score": "Score",
+    "confidence": "Confidence",
+    "format": "Format",
+    "market": "Market",
+    "created": "Created",
+    "view_details": "View Details",
+    "no_opportunities": "No opportunities found",
+    "no_opportunities_hint": "Try adjusting your filters or run the pipeline to generate opportunities.",
+    "score_breakdown": "Score Breakdown",
+    "evidence": "Evidence",
+    "why_now": "Why Now",
+    "lifecycle_state": "Status",
+    "classification_labels": {
+      "immediate": "Immediate",
+      "near_term": "Near Term",
+      "watchlist": "Watchlist",
+      "low_priority": "Low Priority",
+      "rejected": "Rejected",
+      "archived": "Archived"
+    }
+  },
+  "scores": {
+    "demand": "Demand",
+    "growth": "Growth",
+    "job_market": "Job Market",
+    "trend": "Trend",
+    "content_gap": "Content Gap",
+    "localization_fit": "Localization Fit",
+    "teachability": "Teachability",
+    "strategic_fit": "Strategic Fit",
+    "total": "Total Score",
+    "confidence": "Confidence"
+  },
+  "pipeline": {
+    "title": "Pipeline Status",
+    "run_id": "Run ID",
+    "started": "Started",
+    "ended": "Ended",
+    "status": "Status",
+    "steps": "Steps",
+    "errors": "Errors",
+    "no_runs": "No pipeline runs found",
+    "status_labels": {
+      "pending": "Pending",
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed",
+      "partial": "Partial"
+    }
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "retry": "Retry",
+    "back": "Back",
+    "close": "Close",
+    "unknown": "Unknown",
+    "na": "N/A"
+  },
+  "locale": {
+    "switch_to_he": "עברית",
+    "switch_to_en": "English"
+  }
+}
