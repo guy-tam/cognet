@@ -8,32 +8,57 @@ interface NavigationProps {
   locale: string
 }
 
-// פריט ניווט בודד
+// פריט ניווט בודד — עם אייקון ואפקט זוהר
 function NavItem({
   href,
+  icon,
   label,
   isActive,
+  isRTL,
 }: {
   href: string
+  icon: string
   label: string
   isActive: boolean
+  isRTL: boolean
 }) {
   return (
     <Link
       href={href}
       className={[
-        'flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors',
+        'group flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium',
+        'transition-all duration-200 ease-out relative',
         isActive
-          ? 'bg-blue-50 text-blue-700'
-          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
+          ? 'bg-white/10 text-white'
+          : 'text-slate-400 hover:bg-white/5 hover:text-slate-200',
       ].join(' ')}
     >
-      {label}
+      {/* פס מסמן פעיל */}
+      {isActive && (
+        <span
+          className={[
+            'absolute top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full',
+            'bg-gradient-to-b from-indigo-400 to-purple-400',
+            isRTL ? 'right-0' : 'left-0',
+          ].join(' ')}
+        />
+      )}
+
+      {/* אייקון */}
+      <span className="text-base flex-shrink-0">{icon}</span>
+
+      {/* תווית */}
+      <span>{label}</span>
+
+      {/* אפקט זוהר בריחוף */}
+      {!isActive && (
+        <span className="absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-r from-indigo-500/5 to-purple-500/5 pointer-events-none" />
+      )}
     </Link>
   )
 }
 
-// ניווט צידי — RTL aware, עם לינקים לכל הסקציות
+// ניווט צידי — רקע כהה פרמיום, RTL aware
 export default function Navigation({ locale }: NavigationProps) {
   const t = useTranslations('nav')
   const pathname = usePathname()
@@ -49,49 +74,64 @@ export default function Navigation({ locale }: NavigationProps) {
   return (
     <aside
       className={[
-        'w-56 min-h-screen bg-white border-gray-200 flex flex-col',
+        'w-60 min-h-screen sidebar-gradient flex flex-col',
+        'border-white/5',
         isRTL ? 'border-l' : 'border-r',
       ].join(' ')}
     >
-      {/* לוגו / כותרת */}
-      <div className="px-5 py-5 border-b border-gray-100">
+      {/* אזור לוגו עם זוהר */}
+      <div className="px-5 py-6 border-b border-white/5">
         <div className="flex flex-col">
-          <span className="text-base font-bold text-gray-900 tracking-tight">COGNET</span>
-          <span className="text-xs text-gray-400 mt-0.5">LDI Engine</span>
+          <span className="text-xl font-bold gradient-text tracking-tight">
+            COGNET
+          </span>
+          <span className="text-[11px] text-slate-500 mt-0.5 font-medium tracking-wide uppercase">
+            Learning Demand Intelligence
+          </span>
         </div>
       </div>
 
       {/* פריטי ניווט */}
-      <nav className="flex-1 p-3 space-y-1">
+      <nav className="flex-1 p-3 space-y-0.5 mt-2">
         <NavItem
           href="/"
+          icon="🏠"
           label={t('dashboard')}
           isActive={isActive('/')}
-        />
-        <NavItem
-          href="/opportunities"
-          label={t('opportunities')}
-          isActive={isActive('/opportunities')}
-        />
-        <NavItem
-          href="/discover"
-          label={t('discover') || '🌍 Market Scanner'}
-          isActive={isActive('/discover') || isActive('/search')}
+          isRTL={isRTL}
         />
         <NavItem
           href="/demand"
-          label={t('demand') || '📚 Learning Demand'}
+          icon="📚"
+          label={t('demand') || 'Learning Demand'}
           isActive={isActive('/demand')}
+          isRTL={isRTL}
+        />
+        <NavItem
+          href="/discover"
+          icon="🌍"
+          label={t('discover') || 'Market Scanner'}
+          isActive={isActive('/discover') || isActive('/search')}
+          isRTL={isRTL}
+        />
+        <NavItem
+          href="/opportunities"
+          icon="📊"
+          label={t('opportunities')}
+          isActive={isActive('/opportunities')}
+          isRTL={isRTL}
         />
         <NavItem
           href="/pipeline"
+          icon="⚙️"
           label={t('pipeline')}
           isActive={isActive('/pipeline')}
+          isRTL={isRTL}
         />
       </nav>
 
       {/* תחתית — מחליף שפה */}
-      <div className="p-4 border-t border-gray-100">
+      <div className="p-4 border-t border-white/5">
         <LocaleSwitcher />
       </div>
     </aside>

@@ -8,11 +8,11 @@ import type { PipelineStatusResponse } from '@/types/api'
 // בדג סטטוס pipeline
 function StatusBadge({ status }: { status: string }) {
   const colorMap: Record<string, string> = {
-    completed: 'bg-green-100 text-green-800',
-    running: 'bg-blue-100 text-blue-800',
-    failed: 'bg-red-100 text-red-800',
-    partial: 'bg-yellow-100 text-yellow-800',
-    pending: 'bg-gray-100 text-gray-700',
+    completed: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+    running: 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200',
+    failed: 'bg-red-50 text-red-700 ring-1 ring-red-200',
+    partial: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+    pending: 'bg-slate-50 text-slate-600 ring-1 ring-slate-200',
   }
   const t = useTranslations('pipeline')
   const label = status in colorMap
@@ -66,9 +66,9 @@ export default function PipelinePage() {
   }, [])
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
       {/* כותרת */}
-      <h1 className="text-3xl font-bold text-gray-900">{t('title')}</h1>
+      <h1 className="text-3xl font-bold"><span className="gradient-text">{t('title')}</span></h1>
 
       {/* שגיאה */}
       {error && (
@@ -84,7 +84,7 @@ export default function PipelinePage() {
       )}
 
       {/* כרטיס פרטי הרצה */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-5">
+      <div className="premium-card p-6 space-y-5">
         <h2 className="text-base font-semibold text-gray-700">פרטי הרצה אחרונה</h2>
 
         {loading ? (
@@ -142,7 +142,7 @@ export default function PipelinePage() {
 
       {/* טבלת שלבים */}
       {!loading && data && data.step_summaries.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="premium-card overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100">
             <h2 className="text-base font-semibold text-gray-700">{t('steps')}</h2>
           </div>
@@ -157,7 +157,7 @@ export default function PipelinePage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {data.step_summaries.map((step, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                  <tr key={idx} className="hover:bg-indigo-50/50 transition-colors">
                     <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
                     <td className="px-4 py-3 font-medium text-gray-700">
                       {typeof step['name'] === 'string' ? step['name'] : `שלב ${idx + 1}`}
@@ -175,7 +175,7 @@ export default function PipelinePage() {
 
       {/* מצב ריק לשלבים */}
       {!loading && data && data.step_summaries.length === 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 text-center">
+        <div className="premium-card p-6 text-center">
           <p className="text-gray-400 text-sm">אין שלבים להצגה</p>
         </div>
       )}

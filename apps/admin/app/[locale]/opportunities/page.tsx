@@ -9,12 +9,12 @@ import type { OpportunityListResponse, OpportunityClassification } from '@/types
 // בדג סיווג עם צבע מתאים
 function ClassificationBadge({ cls }: { cls: string }) {
   const colorMap: Record<string, string> = {
-    immediate: 'bg-green-100 text-green-800',
-    near_term: 'bg-blue-100 text-blue-800',
-    watchlist: 'bg-yellow-100 text-yellow-800',
-    low_priority: 'bg-gray-100 text-gray-600',
-    rejected: 'bg-red-100 text-red-700',
-    archived: 'bg-purple-100 text-purple-700',
+    immediate: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+    near_term: 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200',
+    watchlist: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+    low_priority: 'bg-slate-50 text-slate-600 ring-1 ring-slate-200',
+    rejected: 'bg-red-50 text-red-700 ring-1 ring-red-200',
+    archived: 'bg-purple-50 text-purple-700 ring-1 ring-purple-200',
   }
   return (
     <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${colorMap[cls] ?? 'bg-gray-100 text-gray-600'}`}>
@@ -101,12 +101,12 @@ export default function OpportunitiesPage() {
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 0
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6 animate-fade-in">
       {/* כותרת */}
-      <h1 className="text-3xl font-bold text-gray-900">{t('title')}</h1>
+      <h1 className="text-3xl font-bold"><span className="gradient-text">{t('title')}</span></h1>
 
       {/* פאנל סינון */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+      <div className="glass-card p-5">
         <h2 className="text-sm font-semibold text-gray-700 mb-4">{t('filters')}</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           {/* מדינה */}
@@ -121,7 +121,7 @@ export default function OpportunitiesPage() {
               onChange={(e) =>
                 setPendingFilters((f) => ({ ...f, country_code: e.target.value || undefined }))
               }
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
@@ -137,7 +137,7 @@ export default function OpportunitiesPage() {
               onChange={(e) =>
                 setPendingFilters((f) => ({ ...f, language_code: e.target.value || undefined }))
               }
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
@@ -154,7 +154,7 @@ export default function OpportunitiesPage() {
                   classification: e.target.value || undefined,
                 }))
               }
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
             >
               {CLASSIFICATIONS.map((c) => (
                 <option key={c.value} value={c.value}>
@@ -182,7 +182,7 @@ export default function OpportunitiesPage() {
                   min_score: e.target.value ? Number(e.target.value) : undefined,
                 }))
               }
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
         </div>
@@ -191,7 +191,7 @@ export default function OpportunitiesPage() {
         <div className="flex gap-3 mt-4">
           <button
             onClick={applyFilters}
-            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+            className="premium-btn text-sm"
           >
             {t('apply_filters')}
           </button>
@@ -218,7 +218,7 @@ export default function OpportunitiesPage() {
       )}
 
       {/* טבלת הזדמנויות */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="premium-card overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
           <span className="text-sm text-gray-500">
             {data ? `${data.total} תוצאות` : ''}
@@ -253,7 +253,7 @@ export default function OpportunitiesPage() {
                   <tr
                     key={op.id ?? idx}
                     onClick={() => router.push(`opportunities/${page * PAGE_SIZE + idx}`)}
-                    className="hover:bg-gray-50 transition-colors cursor-pointer"
+                    className="hover:bg-indigo-50/50 transition-colors cursor-pointer"
                   >
                     <td className="px-4 py-3 font-medium text-gray-900 max-w-xs truncate">
                       {op.canonical_topic_name}
@@ -261,7 +261,7 @@ export default function OpportunitiesPage() {
                     <td className="px-4 py-3 text-gray-600">
                       {op.country_code}/{op.language_code}
                     </td>
-                    <td className="px-4 py-3 font-semibold text-blue-700">
+                    <td className="px-4 py-3 font-semibold text-indigo-700">
                       {(op.opportunity_score * 100).toFixed(0)}%
                     </td>
                     <td className="px-4 py-3 text-gray-600">

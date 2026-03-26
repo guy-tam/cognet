@@ -19,11 +19,11 @@ interface DemandItem {
 interface Country { code: string; name: string }
 
 const GAP_BADGE: Record<string, { bg: string; label: string }> = {
-  high_gap: { bg: 'bg-green-100 text-green-800', label: '🔥 High Opportunity' },
-  moderate_gap: { bg: 'bg-blue-100 text-blue-800', label: '📈 Moderate' },
-  low_gap: { bg: 'bg-yellow-100 text-yellow-800', label: '➡️ Low' },
-  emerging: { bg: 'bg-purple-100 text-purple-700', label: '🌱 Emerging' },
-  saturated: { bg: 'bg-gray-100 text-gray-600', label: '⬇️ Saturated' },
+  high_gap: { bg: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200', label: '🔥 High Opportunity' },
+  moderate_gap: { bg: 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200', label: '📈 Moderate' },
+  low_gap: { bg: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200', label: '➡️ Low' },
+  emerging: { bg: 'bg-purple-50 text-purple-700 ring-1 ring-purple-200', label: '🌱 Emerging' },
+  saturated: { bg: 'bg-slate-50 text-slate-600 ring-1 ring-slate-200', label: '⬇️ Saturated' },
 }
 
 function MiniTimeline({ data, height = 40 }: { data: TimelinePoint[]; height?: number }) {
@@ -37,8 +37,8 @@ function MiniTimeline({ data, height = 40 }: { data: TimelinePoint[]; height?: n
       <svg viewBox={`0 0 100 ${height}`} className="w-full h-full" preserveAspectRatio="none">
         <defs>
           <linearGradient id="tl" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="#8B5CF6" stopOpacity="0.05" />
+            <stop offset="0%" stopColor="#6366F1" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="#6366F1" stopOpacity="0.05" />
           </linearGradient>
         </defs>
         {/* Area fill */}
@@ -49,7 +49,7 @@ function MiniTimeline({ data, height = 40 }: { data: TimelinePoint[]; height?: n
         {/* Line */}
         <polyline
           points={values.map((v, i) => `${i * w},${height - (v / max) * (height - 4)}`).join(' ')}
-          fill="none" stroke="#8B5CF6" strokeWidth="1.5"
+          fill="none" stroke="#6366F1" strokeWidth="1.5"
         />
       </svg>
     </div>
@@ -83,16 +83,16 @@ export default function DemandPage() {
   const sel = selected
 
   return (
-    <div className="space-y-5 max-w-6xl">
+    <div className="space-y-5 max-w-6xl animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold">📚 What People Want to Learn</h1>
+        <h1 className="text-2xl font-bold"><span className="gradient-text">📚 What People Want to Learn</span></h1>
         <p className="text-gray-500 text-sm mt-1">
           Real-time learning demand — HackerNews, GitHub, Wikipedia, Reddit, StackOverflow
         </p>
       </div>
 
       {/* Controls */}
-      <div className="bg-white rounded-lg shadow p-4 flex flex-wrap gap-3 items-center">
+      <div className="glass-card p-4 flex flex-wrap gap-3 items-center">
         <select value={country} onChange={e => setCountry(e.target.value)}
           className="px-3 py-2 border rounded-lg bg-white text-sm min-w-[180px]">
           {countries.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
@@ -110,7 +110,7 @@ export default function DemandPage() {
         </div>
 
         <button onClick={scan} disabled={loading}
-          className="px-5 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 disabled:opacity-50">
+          className="premium-btn disabled:opacity-50">
           {loading ? '⏳ Scanning 50 topics × 6 sources...' : '📚 Scan Learning Demand'}
         </button>
 
@@ -122,8 +122,8 @@ export default function DemandPage() {
       </div>
 
       {loading && (
-        <div className="bg-white rounded-lg shadow p-8 text-center">
-          <div className="animate-spin h-8 w-8 border-4 border-purple-500 border-t-transparent rounded-full mx-auto" />
+        <div className="premium-card p-8 text-center">
+          <div className="animate-shimmer h-8 w-8 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto animate-spin" />
           <p className="mt-4 text-gray-600">Scanning what people want to learn...</p>
           <p className="text-xs text-gray-400 mt-1">Querying HackerNews · GitHub · Wikipedia · Reddit · StackOverflow</p>
         </div>
@@ -132,7 +132,7 @@ export default function DemandPage() {
       {results.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           {/* Results */}
-          <div className="lg:col-span-2 bg-white rounded-lg shadow overflow-hidden">
+          <div className="lg:col-span-2 premium-card overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">
                 <tr>
@@ -187,7 +187,7 @@ export default function DemandPage() {
           {/* Detail panel */}
           <div>
             {sel ? (
-              <div className="bg-white rounded-lg shadow p-5 sticky top-6 space-y-4">
+              <div className="premium-card p-5 sticky top-6 space-y-4 border-l-4 border-l-purple-500">
                 <h3 className="text-lg font-bold capitalize">{sel.topic}</h3>
                 <div className="text-center">
                   <div className="text-4xl font-bold text-purple-700">{(sel.learning_demand_score * 100).toFixed(0)}%</div>
@@ -228,7 +228,7 @@ export default function DemandPage() {
                 <div className="p-3 bg-purple-50 rounded text-sm text-purple-800 font-medium">{sel.action}</div>
               </div>
             ) : (
-              <div className="bg-white rounded-lg shadow p-5 text-center text-gray-400 text-sm">
+              <div className="premium-card p-5 text-center text-gray-400 text-sm">
                 ← Click a topic for details + timeline
               </div>
             )}

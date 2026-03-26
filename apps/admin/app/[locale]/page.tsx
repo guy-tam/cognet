@@ -44,13 +44,13 @@ export default function DashboardPage() {
   useEffect(() => { const i = setInterval(refresh, 60000); return () => clearInterval(i) }, [])
 
   const cc: Record<string, string> = {
-    immediate: 'bg-green-100 text-green-800', near_term: 'bg-blue-100 text-blue-800',
-    watchlist: 'bg-yellow-100 text-yellow-800', low_priority: 'bg-gray-100 text-gray-600',
+    immediate: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200', near_term: 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200',
+    watchlist: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200', low_priority: 'bg-slate-50 text-slate-600 ring-1 ring-slate-200',
   }
   const sc: Record<string, string> = { ok: 'bg-green-500', completed: 'bg-green-500', degraded: 'bg-yellow-500', offline: 'bg-red-500' }
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6 max-w-6xl animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">{t('dashboard.title')}</h1>
@@ -58,7 +58,7 @@ export default function DashboardPage() {
         </div>
         <div className="flex items-center gap-3">
           {lastRefresh && <span className="text-xs text-gray-400">{lastRefresh}</span>}
-          <button onClick={refresh} disabled={loading} className="px-3 py-1.5 bg-gray-100 rounded text-sm hover:bg-gray-200">
+          <button onClick={refresh} disabled={loading} className="px-3 py-1.5 rounded-lg text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 border border-transparent hover:border-gray-200 transition-all">
             {loading ? '...' : '↻'}
           </button>
         </div>
@@ -66,25 +66,25 @@ export default function DashboardPage() {
 
       {/* Status */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="premium-card p-4 border-l-4 border-l-green-500">
           <div className="flex items-center gap-2 mb-1">
             <div className={`w-2.5 h-2.5 rounded-full ${sc[apiStatus] || 'bg-gray-400'}`} />
             <span className="text-sm text-gray-500">API</span>
           </div>
           <div className="text-lg font-bold capitalize">{apiStatus}</div>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="premium-card p-4 border-l-4 border-l-indigo-500">
           <div className="flex items-center gap-2 mb-1">
             <div className={`w-2.5 h-2.5 rounded-full ${sc[pipeStatus] || 'bg-gray-400'}`} />
             <span className="text-sm text-gray-500">Pipeline</span>
           </div>
           <div className="text-lg font-bold capitalize">{pipeStatus}</div>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="premium-card p-4 border-l-4 border-l-purple-500">
           <span className="text-sm text-gray-500">{t('dashboard.total_opportunities')}</span>
           <div className="text-2xl font-bold">{opps.length}</div>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="premium-card p-4 border-l-4 border-l-amber-500">
           <span className="text-sm text-gray-500">Top Score</span>
           <div className="text-2xl font-bold">{opps[0] ? `${(opps[0].opportunity_score * 100).toFixed(0)}%` : '—'}</div>
         </div>
@@ -92,15 +92,15 @@ export default function DashboardPage() {
 
       {/* Quick actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Link href="/discover" className="bg-white rounded-lg shadow p-4 hover:bg-blue-50 transition border-l-4 border-blue-500 block">
+        <Link href="/discover" className="glass-card p-4 hover:scale-[1.02] transition-all duration-200 border-l-4 border-l-indigo-500 block">
           <div className="font-medium">🌍 {t('nav.discover')}</div>
           <p className="text-sm text-gray-500 mt-1">Scan 50 topics × 5 sources × 50 countries — real-time</p>
         </Link>
-        <Link href="/demand" className="bg-white rounded-lg shadow p-4 hover:bg-purple-50 transition border-l-4 border-purple-500 block">
+        <Link href="/demand" className="glass-card p-4 hover:scale-[1.02] transition-all duration-200 border-l-4 border-l-purple-500 block">
           <div className="font-medium">📚 Learning Demand</div>
           <p className="text-sm text-gray-500 mt-1">What people want to learn — search patterns + hiring signals</p>
         </Link>
-        <Link href="/opportunities" className="bg-white rounded-lg shadow p-4 hover:bg-green-50 transition border-l-4 border-green-500 block">
+        <Link href="/opportunities" className="glass-card p-4 hover:scale-[1.02] transition-all duration-200 border-l-4 border-l-green-500 block">
           <div className="font-medium">📊 {t('nav.opportunities')}</div>
           <p className="text-sm text-gray-500 mt-1">{opps.length} ranked opportunities from pipeline</p>
         </Link>
@@ -108,14 +108,14 @@ export default function DashboardPage() {
 
       {/* Top opportunities live table */}
       {opps.length > 0 && (
-        <div className="bg-white rounded-lg shadow">
+        <div className="premium-card overflow-hidden">
           <div className="px-5 py-3 border-b flex items-center justify-between">
             <h2 className="font-semibold">{t('dashboard.top_opportunities')}</h2>
-            <Link href="/opportunities" className="text-sm text-blue-600 hover:underline">View all →</Link>
+            <Link href="/opportunities" className="text-sm text-indigo-600 hover:underline">View all →</Link>
           </div>
           <div className="divide-y">
             {opps.slice(0, 8).map((o, i) => (
-              <div key={i} className="px-5 py-3 flex items-center gap-4 hover:bg-gray-50">
+              <div key={i} className="px-5 py-3 flex items-center gap-4 hover:bg-indigo-50/50 transition-colors">
                 <span className="text-gray-400 text-sm w-6">{i + 1}</span>
                 <div className="flex-1">
                   <span className="font-medium capitalize">{o.canonical_topic_name}</span>

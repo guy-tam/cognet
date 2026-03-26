@@ -49,8 +49,8 @@ const DIR_COLOR: Record<string, string> = {
   stable: 'text-gray-500', declining: 'text-red-500', unknown: 'text-gray-400',
 }
 const DEMAND_COLOR: Record<string, string> = {
-  very_high: 'bg-green-100 text-green-800', high: 'bg-blue-100 text-blue-800',
-  moderate: 'bg-yellow-100 text-yellow-800', low: 'bg-gray-100 text-gray-600',
+  very_high: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200', high: 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200',
+  moderate: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200', low: 'bg-slate-50 text-slate-600 ring-1 ring-slate-200',
 }
 
 export default function IntelligencePage() {
@@ -130,7 +130,7 @@ export default function IntelligencePage() {
   const sr = searchResult
 
   return (
-    <div className="space-y-5 max-w-6xl">
+    <div className="space-y-5 max-w-6xl animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -140,7 +140,7 @@ export default function IntelligencePage() {
       </div>
 
       {/* Country + Tab selector */}
-      <div className="bg-white rounded-lg shadow p-4">
+      <div className="premium-card p-4">
         <div className="flex flex-wrap gap-4 items-center">
           <select value={country} onChange={e => setCountry(e.target.value)}
             className="px-3 py-2 border rounded-lg bg-white text-sm min-w-[200px]">
@@ -150,18 +150,18 @@ export default function IntelligencePage() {
 
           <div className="flex bg-gray-100 rounded-lg p-0.5">
             <button onClick={() => setTab('scan')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === 'scan' ? 'bg-white shadow text-blue-700' : 'text-gray-600 hover:text-gray-900'}`}>
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === 'scan' ? 'bg-white shadow-sm text-indigo-700 ring-1 ring-indigo-200' : 'text-gray-600 hover:text-gray-900'}`}>
               🌍 Market Scan
             </button>
             <button onClick={() => setTab('search')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === 'search' ? 'bg-white shadow text-blue-700' : 'text-gray-600 hover:text-gray-900'}`}>
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === 'search' ? 'bg-white shadow-sm text-indigo-700 ring-1 ring-indigo-200' : 'text-gray-600 hover:text-gray-900'}`}>
               🔍 Deep Search
             </button>
           </div>
 
           {tab === 'scan' && (
             <button onClick={runScan} disabled={scanLoading}
-              className="px-5 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
+              className="premium-btn disabled:opacity-50">
               {scanLoading ? '⏳ Scanning 50 topics...' : '🔍 Scan Market'}
             </button>
           )}
@@ -171,9 +171,9 @@ export default function IntelligencePage() {
               <input type="text" value={query} onChange={e => setQuery(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && runSearch()}
                 placeholder="Any topic... (e.g. machine learning, React, cybersecurity)"
-                className="flex-1 px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className="flex-1 px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               <button onClick={runSearch} disabled={searchLoading || !query.trim()}
-                className="px-5 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
+                className="premium-btn disabled:opacity-50">
                 {searchLoading ? '⏳...' : 'Analyze'}
               </button>
             </div>
@@ -188,7 +188,7 @@ export default function IntelligencePage() {
 
       {/* Trending strip */}
       {trending.length > 0 && (
-        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+        <div className="glass-card p-3 bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200">
           <div className="flex flex-wrap gap-2 items-center">
             <span className="text-sm font-medium text-orange-700 mr-1">🔥 Trending now:</span>
             {trending.slice(0, 12).map((t, i) => (
@@ -205,8 +205,8 @@ export default function IntelligencePage() {
       {tab === 'scan' && (
         <>
           {scanLoading && (
-            <div className="bg-white rounded-lg shadow p-8 text-center">
-              <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto" />
+            <div className="premium-card p-8 text-center">
+              <div className="animate-shimmer animate-spin h-8 w-8 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto" />
               <p className="mt-4 text-gray-500">Scanning 50 topics across 5 live sources...</p>
               <p className="text-sm text-gray-400 mt-1">StackOverflow · HackerNews · GitHub · Wikipedia · Reddit</p>
             </div>
@@ -221,7 +221,7 @@ export default function IntelligencePage() {
 
           {scanResults.length > 0 && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-              <div className="lg:col-span-2 bg-white rounded-lg shadow overflow-hidden">
+              <div className="lg:col-span-2 premium-card overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 border-b">
                     <tr>
@@ -237,7 +237,7 @@ export default function IntelligencePage() {
                   <tbody className="divide-y">
                     {scanResults.map(topic => (
                       <tr key={topic.rank}
-                        className={`hover:bg-blue-50 cursor-pointer transition ${selectedTopic?.topic === topic.topic ? 'bg-blue-50' : ''}`}
+                        className={`hover:bg-indigo-50/50 cursor-pointer transition ${selectedTopic?.topic === topic.topic ? 'bg-indigo-50' : ''}`}
                         onClick={() => setSelectedTopic(topic)}>
                         <td className="px-3 py-2.5 text-gray-400">{topic.rank}</td>
                         <td className="px-3 py-2.5 font-medium capitalize">{topic.topic}</td>
@@ -258,7 +258,7 @@ export default function IntelligencePage() {
                         </td>
                         <td className="px-3 py-2.5 text-center">
                           <button onClick={e => { e.stopPropagation(); drillDown(topic.topic) }}
-                            className="text-blue-500 hover:text-blue-700 text-xs">🔍</button>
+                            className="text-indigo-500 hover:text-indigo-700 text-xs">🔍</button>
                         </td>
                       </tr>
                     ))}
@@ -269,7 +269,7 @@ export default function IntelligencePage() {
               {/* Side panel */}
               <div>
                 {selectedTopic ? (
-                  <div className="bg-white rounded-lg shadow p-5 sticky top-6 space-y-4">
+                  <div className="premium-card p-5 sticky top-6 space-y-4">
                     <h3 className="text-lg font-bold capitalize">{selectedTopic.topic}</h3>
                     <div className="text-center">
                       <div className="text-4xl font-bold">{(selectedTopic.opportunity_score * 100).toFixed(0)}%</div>
@@ -284,15 +284,15 @@ export default function IntelligencePage() {
                       <div className="flex justify-between"><span className="text-gray-500">Sources</span><span>{selectedTopic.sources_used}/5</span></div>
                     </div>
                     {selectedTopic.evidence_summary && (
-                      <p className="text-xs text-blue-700 bg-blue-50 p-2 rounded">{selectedTopic.evidence_summary}</p>
+                      <p className="text-xs text-indigo-700 bg-indigo-50 p-2 rounded">{selectedTopic.evidence_summary}</p>
                     )}
                     <button onClick={() => drillDown(selectedTopic.topic)}
-                      className="w-full py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
+                      className="w-full premium-btn text-sm">
                       🔍 Deep Analyze
                     </button>
                   </div>
                 ) : (
-                  <div className="bg-white rounded-lg shadow p-5 text-center text-gray-400 text-sm">
+                  <div className="premium-card p-5 text-center text-gray-400 text-sm">
                     Click a topic for details
                   </div>
                 )}
@@ -306,8 +306,8 @@ export default function IntelligencePage() {
       {tab === 'search' && (
         <>
           {searchLoading && (
-            <div className="bg-white rounded-lg shadow p-8 text-center">
-              <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto" />
+            <div className="premium-card p-8 text-center">
+              <div className="animate-shimmer animate-spin h-8 w-8 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto" />
               <p className="mt-4 text-gray-500">Analyzing &quot;{query}&quot; across 10+ live sources...</p>
             </div>
           )}
@@ -316,7 +316,7 @@ export default function IntelligencePage() {
           {sr && (
             <div className="space-y-5">
               {/* Header */}
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="premium-card p-6">
                 <div className="flex items-start justify-between">
                   <div>
                     <h2 className="text-xl font-bold capitalize">{sr.topic}</h2>
@@ -335,24 +335,24 @@ export default function IntelligencePage() {
                     <div className="text-xs text-gray-500">Opportunity</div>
                   </div>
                 </div>
-                <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                  <p className="font-medium text-blue-800 text-sm">📋 {sr.recommended_action}</p>
+                <div className="mt-4 p-3 bg-indigo-50 rounded-lg">
+                  <p className="font-medium text-indigo-800 text-sm">📋 {sr.recommended_action}</p>
                 </div>
               </div>
 
               {/* Source cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white rounded-lg shadow p-4">
+                <div className="premium-card p-4">
                   <h4 className="font-medium text-gray-700 text-sm mb-2">📊 Google Trends</h4>
                   <ScoreBar score={sr.google_trends_score} label="Interest" />
                   <p className="mt-1 text-xs text-gray-500">Direction: <strong>{sr.google_trends_direction}</strong></p>
                 </div>
-                <div className="bg-white rounded-lg shadow p-4">
+                <div className="premium-card p-4">
                   <h4 className="font-medium text-gray-700 text-sm mb-2">💬 StackOverflow</h4>
                   <div className="text-2xl font-bold">{sr.stackoverflow_activity.toLocaleString()}</div>
                   <p className="text-xs text-gray-500">tagged questions</p>
                 </div>
-                <div className="bg-white rounded-lg shadow p-4">
+                <div className="premium-card p-4">
                   <h4 className="font-medium text-gray-700 text-sm mb-2">🔶 HackerNews</h4>
                   <div className="text-2xl font-bold">{sr.hackernews_mentions.toLocaleString()}</div>
                   <p className="text-xs text-gray-500">mentions · avg score {sr.hackernews_avg_score}</p>
@@ -360,7 +360,7 @@ export default function IntelligencePage() {
               </div>
 
               {/* Why Now */}
-              <div className="bg-white rounded-lg shadow p-5">
+              <div className="premium-card p-5">
                 <h4 className="font-medium text-gray-700 mb-2">💡 Why Now</h4>
                 <p className="text-gray-700 text-sm">{sr.why_now}</p>
                 <div className="mt-3 flex gap-2 flex-wrap">

@@ -54,7 +54,7 @@ export default function OpportunityDetailPage() {
         <p className="text-red-500 text-lg">{error || t('common.error')}</p>
         <button
           onClick={() => router.back()}
-          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          className="mt-4 premium-btn"
         >
           {t('common.back')}
         </button>
@@ -64,22 +64,22 @@ export default function OpportunityDetailPage() {
 
   // מיפוי צבעים לפי סיווג
   const classificationColor: Record<string, string> = {
-    immediate: 'bg-green-100 text-green-800',
-    near_term: 'bg-blue-100 text-blue-800',
-    watchlist: 'bg-yellow-100 text-yellow-800',
-    low_priority: 'bg-gray-100 text-gray-800',
-    rejected: 'bg-red-100 text-red-800',
-    archived: 'bg-gray-200 text-gray-600',
+    immediate: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+    near_term: 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200',
+    watchlist: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+    low_priority: 'bg-slate-50 text-slate-600 ring-1 ring-slate-200',
+    rejected: 'bg-red-50 text-red-700 ring-1 ring-red-200',
+    archived: 'bg-purple-50 text-purple-700 ring-1 ring-purple-200',
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-fade-in">
       {/* כותרת */}
       <div className="flex items-start justify-between">
         <div>
           <button
             onClick={() => router.back()}
-            className="text-sm text-blue-600 hover:underline mb-2 inline-block"
+            className="text-sm text-indigo-600 hover:underline mb-2 inline-block"
           >
             &larr; {t('common.back')}
           </button>
@@ -105,13 +105,13 @@ export default function OpportunityDetailPage() {
       {/* רשת תוכן ראשית */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* פירוט ציונים */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="premium-card p-6">
           <h2 className="text-lg font-semibold mb-4">{t('opportunities.score_breakdown')}</h2>
           <ScoreBreakdown breakdown={opportunity.score_breakdown} />
         </div>
 
         {/* למה עכשיו */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="premium-card p-6">
           <h2 className="text-lg font-semibold mb-4">{t('opportunities.why_now')}</h2>
           <p className="text-gray-700 leading-relaxed">{opportunity.why_now_summary}</p>
           <div className="mt-4 flex items-center gap-4 text-sm text-gray-500">
@@ -121,7 +121,7 @@ export default function OpportunityDetailPage() {
         </div>
 
         {/* ראיות */}
-        <div className="bg-white rounded-lg shadow p-6 lg:col-span-2">
+        <div className="premium-card p-6 lg:col-span-2">
           <h2 className="text-lg font-semibold mb-4">
             {t('opportunities.evidence')} ({opportunity.evidence.length})
           </h2>
@@ -132,7 +132,7 @@ export default function OpportunityDetailPage() {
               {opportunity.evidence.map((ev, idx) => (
                 <div key={idx} className="border rounded p-4">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-medium text-sm text-blue-700">{ev.source_type}</span>
+                    <span className="font-medium text-sm text-indigo-700">{ev.source_type}</span>
                     <span className="text-xs text-gray-400">
                       weight: {(ev.evidence_weight * 100).toFixed(0)}%
                     </span>
