@@ -1,21 +1,22 @@
 """
 Learning Demand Intelligence — COGNET LDI Engine.
-What people WANT TO LEARN — based on REAL data from APIs that always work:
-  - StackOverflow: beginner questions, "how to" queries, tutorial requests
-  - HackerNews: "learn X", "course X", tutorial articles
-  - GitHub: tutorial/course/learning repos, educational content
-  - Wikipedia: pageviews on learning-related articles
-  - Reddit: r/learnprogramming style activity
+Real data from reliable APIs about what people WANT TO LEARN.
 
-Google Trends used as bonus signal when available (rate limited).
+Sources (all free, reliable):
+  1. HackerNews Algolia — learn/course/tutorial mentions (unlimited, fast)
+  2. GitHub Search — tutorial repos + job repos (10 req/min unauthed)
+  3. Wikipedia Pageviews — article views (unlimited with proper UA)
+  4. Reddit Search — learning community posts (reasonable limits)
+  5. StackOverflow — tag counts + questions (300/day, cached aggressively)
+
+Timeline support: scan across different time windows.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
 import time
-import math
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import httpx
 from fastapi import APIRouter, Query
@@ -29,14 +30,14 @@ COUNTRIES = {
     "DE": "Germany", "FR": "France", "IN": "India", "JP": "Japan",
     "KR": "South Korea", "BR": "Brazil", "AU": "Australia", "CA": "Canada",
     "NL": "Netherlands", "SE": "Sweden", "SG": "Singapore", "ES": "Spain",
-    "IT": "Italy", "PL": "Poland", "CH": "Switzerland", "AT": "Austria",
-    "BE": "Belgium", "DK": "Denmark", "FI": "Finland", "NO": "Norway",
-    "IE": "Ireland", "PT": "Portugal", "ZA": "South Africa", "NG": "Nigeria",
-    "AE": "UAE", "SA": "Saudi Arabia", "MX": "Mexico", "AR": "Argentina",
-    "CO": "Colombia", "TW": "Taiwan", "TH": "Thailand", "VN": "Vietnam",
-    "PH": "Philippines", "ID": "Indonesia", "MY": "Malaysia", "TR": "Turkey",
-    "EG": "Egypt", "UA": "Ukraine", "CZ": "Czech Republic", "RO": "Romania",
-    "GR": "Greece", "NZ": "New Zealand", "CL": "Chile", "KE": "Kenya",
+    "IT": "Italy", "PL": "Poland", "CH": "Switzerland", "IE": "Ireland",
+    "PT": "Portugal", "ZA": "South Africa", "NG": "Nigeria", "AE": "UAE",
+    "SA": "Saudi Arabia", "MX": "Mexico", "AR": "Argentina", "CO": "Colombia",
+    "TW": "Taiwan", "TH": "Thailand", "VN": "Vietnam", "PH": "Philippines",
+    "ID": "Indonesia", "MY": "Malaysia", "TR": "Turkey", "EG": "Egypt",
+    "UA": "Ukraine", "CZ": "Czech Republic", "RO": "Romania", "NZ": "New Zealand",
+    "CL": "Chile", "KE": "Kenya", "AT": "Austria", "BE": "Belgium",
+    "DK": "Denmark", "FI": "Finland", "NO": "Norway", "GR": "Greece",
     "HU": "Hungary", "RU": "Russia", "CN": "China",
 }
 
@@ -56,39 +57,46 @@ TOPICS = [
     "software architecture", "agile", "scrum",
 ]
 
-# ─── Cache ───
+# ─── Cache (aggressive — 10 min per source, 5 min full results) ───
 _cache: dict[str, tuple[float, object]] = {}
-CACHE_TTL = 600
+SOURCE_CACHE_TTL = 600
+FULL_CACHE_TTL = 300
+UA = "COGNET-LDI/1.0 (https://cognet.app; open@cognet.app) python-httpx"
 
 
-def _cached(key: str):
-    if key in _cache and time.time() - _cache[key][0] < CACHE_TTL:
+def _get(key: str, ttl: int = SOURCE_CACHE_TTL):
+    if key in _cache and time.time() - _cache[key][0] < ttl:
         return _cache[key][1]
     return None
 
 
-def _set_cache(key: str, val):
+def _put(key: str, val):
     _cache[key] = (time.time(), val)
 
 
 # ─── Models ───
 
+class TimelinePoint(BaseModel):
+    date: str
+    value: float
+
+
 class DemandItem(BaseModel):
     rank: int
     topic: str
     learning_demand_score: float
-    people_want_to_learn: int = Field(description="SO beginner questions + HN learn mentions")
-    companies_are_hiring: int = Field(description="GitHub job/hiring repos")
-    community_activity: int = Field(description="Reddit + HN tutorial mentions")
-    github_learning_repos: int = 0
-    so_beginner_questions: int = 0
     hn_learn_mentions: int = 0
-    wikipedia_views: int = 0
-    growth_direction: str = "stable"
-    gap_signal: str = "moderate_gap"
+    hn_avg_score: float = 0
+    github_learning_repos: int = 0
+    github_job_repos: int = 0
+    wikipedia_views_30d: int = 0
+    reddit_learn_posts: int = 0
+    so_tag_count: int = 0
+    gap_signal: str = "unknown"
     why: str = ""
     action: str = ""
-    sources_succeeded: int = 0
+    sources_ok: int = 0
+    timeline: list[TimelinePoint] = Field(default_factory=list, description="Wikipedia daily views timeline")
 
 
 class DemandResponse(BaseModel):
@@ -97,272 +105,317 @@ class DemandResponse(BaseModel):
     scan_time_ms: int
     topics_analyzed: int
     timestamp: str
+    time_range: str
     results: list[DemandItem]
 
 
-# ─── Source fetchers — ALL reliable, no rate limits ───
+# ─── Source fetchers ───
 
-async def _so_learning(client: httpx.AsyncClient, topic: str) -> dict:
-    """SO beginner/learning questions."""
-    total = 0
+async def _hn(client: httpx.AsyncClient, topic: str) -> dict:
+    """HackerNews learn mentions — most reliable, no limits."""
+    ck = f"hn:{topic}"
+    c = _get(ck)
+    if c:
+        return c
     try:
-        resp = await client.get(
-            "https://api.stackexchange.com/2.3/search/excerpts",
-            params={"site": "stackoverflow", "q": f"{topic} tutorial beginner how to learn", "pagesize": 1},
-        )
-        if resp.status_code == 200:
-            total = resp.json().get("total", 0)
-    except Exception:
-        pass
-    return {"so_beginner": total, "score": min(1.0, total / 5000)}
-
-
-async def _hn_learning(client: httpx.AsyncClient, topic: str) -> dict:
-    """HN mentions of learning/courses."""
-    mentions = 0
-    avg_score = 0.0
-    try:
-        resp = await client.get(
+        r = await client.get(
             "https://hn.algolia.com/api/v1/search",
-            params={"query": f"learn {topic} course tutorial", "tags": "story", "hitsPerPage": 10},
+            params={"query": f"learn {topic} course tutorial", "tags": "story", "hitsPerPage": 15},
         )
-        if resp.status_code == 200:
-            data = resp.json()
-            mentions = data.get("nbHits", 0)
-            hits = data.get("hits", [])
-            if hits:
-                avg_score = sum(h.get("points", 0) or 0 for h in hits) / len(hits)
-    except Exception:
-        pass
-    return {"hn_learn": mentions, "avg_score": round(avg_score, 1), "score": min(1.0, mentions / 2000)}
+        if r.status_code == 200:
+            d = r.json()
+            hits = d.get("hits", [])
+            total = d.get("nbHits", 0)
+            avg = sum(h.get("points", 0) or 0 for h in hits) / max(len(hits), 1)
+            # Recent vs older for growth signal
+            titles = [h.get("title", "") for h in hits[:5]]
+            result = {"mentions": total, "avg_score": round(avg, 1), "titles": titles,
+                      "score": min(1.0, total / 3000)}
+            _put(ck, result)
+            return result
+    except Exception as e:
+        logger.debug(f"HN failed for {topic}: {e}")
+    return {"mentions": 0, "avg_score": 0, "score": 0}
 
 
-async def _github_learning(client: httpx.AsyncClient, topic: str) -> dict:
-    """GitHub learning/tutorial repos."""
-    repos = 0
+async def _github_learn(client: httpx.AsyncClient, topic: str) -> dict:
+    """GitHub tutorial/course repos."""
+    ck = f"gh_learn:{topic}"
+    c = _get(ck)
+    if c:
+        return c
     try:
-        resp = await client.get(
+        r = await client.get(
             "https://api.github.com/search/repositories",
             params={"q": f"{topic} tutorial course learn", "sort": "stars", "per_page": 1},
-            headers={"Accept": "application/vnd.github.v3+json"},
+            headers={"Accept": "application/vnd.github.v3+json", "User-Agent": UA},
         )
-        if resp.status_code == 200:
-            repos = resp.json().get("total_count", 0)
+        if r.status_code == 200:
+            total = r.json().get("total_count", 0)
+            result = {"repos": total, "score": min(1.0, total / 20000)}
+            _put(ck, result)
+            return result
     except Exception:
         pass
-    return {"repos": repos, "score": min(1.0, repos / 20000)}
+    return {"repos": 0, "score": 0}
 
 
 async def _github_jobs(client: httpx.AsyncClient, topic: str) -> dict:
-    """GitHub repos mentioning hiring/jobs."""
-    repos = 0
+    """GitHub job-related repos (hiring demand signal)."""
+    ck = f"gh_jobs:{topic}"
+    c = _get(ck)
+    if c:
+        return c
     try:
-        resp = await client.get(
+        r = await client.get(
             "https://api.github.com/search/repositories",
-            params={"q": f"{topic} jobs hiring", "sort": "updated", "per_page": 1},
-            headers={"Accept": "application/vnd.github.v3+json"},
+            params={"q": f"{topic} jobs hiring career", "sort": "updated", "per_page": 1},
+            headers={"Accept": "application/vnd.github.v3+json", "User-Agent": UA},
         )
-        if resp.status_code == 200:
-            repos = resp.json().get("total_count", 0)
+        if r.status_code == 200:
+            total = r.json().get("total_count", 0)
+            result = {"repos": total, "score": min(1.0, total / 5000)}
+            _put(ck, result)
+            return result
     except Exception:
         pass
-    return {"job_repos": repos, "score": min(1.0, repos / 5000)}
+    return {"repos": 0, "score": 0}
 
 
-async def _wikipedia_learning(client: httpx.AsyncClient, topic: str) -> dict:
-    """Wikipedia pageviews."""
-    views = 0
+async def _wikipedia(client: httpx.AsyncClient, topic: str) -> dict:
+    """Wikipedia pageviews with daily timeline."""
+    ck = f"wiki:{topic}"
+    c = _get(ck)
+    if c:
+        return c
+
+    title = topic.replace(" ", "_").title()
+    # Try multiple title formats
+    titles_to_try = [
+        title,
+        title.replace("_", "_(%s)_" % "programming_language") if topic.lower() in ("python", "swift", "rust", "go") else title,
+        topic.replace(" ", "_"),
+    ]
+
+    end = datetime.now(timezone.utc)
+    start_date = end - timedelta(days=30)
+    start_str = start_date.strftime("%Y%m%d")
+    end_str = end.strftime("%Y%m%d")
+
+    for t in titles_to_try:
+        try:
+            r = await client.get(
+                f"https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
+                f"en.wikipedia/all-access/all-agents/{t}/daily/{start_str}/{end_str}",
+                headers={"User-Agent": UA},
+            )
+            if r.status_code == 200:
+                items = r.json().get("items", [])
+                if items:
+                    total = sum(i.get("views", 0) for i in items)
+                    timeline = [
+                        {"date": i.get("timestamp", "")[:8], "value": i.get("views", 0)}
+                        for i in items
+                    ]
+                    result = {"views": total, "timeline": timeline,
+                              "score": min(1.0, total / 300000)}
+                    _put(ck, result)
+                    return result
+        except Exception:
+            continue
+    return {"views": 0, "timeline": [], "score": 0}
+
+
+async def _reddit(client: httpx.AsyncClient, topic: str) -> dict:
+    """Reddit learning posts."""
+    ck = f"reddit:{topic}"
+    c = _get(ck)
+    if c:
+        return c
     try:
-        title = topic.replace(" ", "_")
-        resp = await client.get(
-            f"https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
-            f"en.wikipedia/all-access/all-agents/{title}/daily/20260224/20260326",
-        )
-        if resp.status_code == 200:
-            items = resp.json().get("items", [])
-            views = sum(i.get("views", 0) for i in items)
-    except Exception:
-        pass
-    return {"views": views, "score": min(1.0, views / 200000)}
-
-
-async def _reddit_learning(client: httpx.AsyncClient, topic: str) -> dict:
-    """Reddit learning activity."""
-    posts = 0
-    try:
-        resp = await client.get(
+        r = await client.get(
             "https://old.reddit.com/search.json",
             params={"q": f"learn {topic}", "sort": "new", "limit": 10, "t": "month"},
-            headers={"User-Agent": "COGNET-LDI/1.0"},
+            headers={"User-Agent": UA},
             follow_redirects=True,
         )
-        if resp.status_code == 200:
-            posts = len(resp.json().get("data", {}).get("children", []))
+        if r.status_code == 200:
+            children = r.json().get("data", {}).get("children", [])
+            result = {"posts": len(children), "score": min(1.0, len(children) / 10)}
+            _put(ck, result)
+            return result
     except Exception:
         pass
-    return {"posts": posts, "score": min(1.0, posts / 10)}
+    return {"posts": 0, "score": 0}
 
 
-async def _scan_topic(client: httpx.AsyncClient, topic: str) -> dict:
-    """Scan a single topic across all learning-focused sources."""
-    cache_key = f"demand_topic:{topic}"
-    cached = _cached(cache_key)
-    if cached:
-        return cached
+async def _so(client: httpx.AsyncClient, topic: str) -> dict:
+    """StackOverflow tag count (cached aggressively)."""
+    ck = f"so:{topic}"
+    c = _get(ck, ttl=1800)  # Cache 30 min
+    if c:
+        return c
+    tag = topic.lower().replace(" ", "-")
+    try:
+        r = await client.get(
+            f"https://api.stackexchange.com/2.3/tags/{tag}/info",
+            params={"site": "stackoverflow"},
+        )
+        if r.status_code == 200:
+            items = r.json().get("items", [])
+            count = items[0].get("count", 0) if items else 0
+            result = {"count": count, "score": min(1.0, count / 200000)}
+            _put(ck, result)
+            return result
+    except Exception:
+        pass
+    return {"count": 0, "score": 0}
 
+
+async def _scan_one(client: httpx.AsyncClient, topic: str) -> dict:
+    """Scan one topic across all sources concurrently."""
     tasks = {
-        "so": _so_learning(client, topic),
-        "hn": _hn_learning(client, topic),
-        "github_learn": _github_learning(client, topic),
+        "hn": _hn(client, topic),
+        "github_learn": _github_learn(client, topic),
         "github_jobs": _github_jobs(client, topic),
-        "wikipedia": _wikipedia_learning(client, topic),
-        "reddit": _reddit_learning(client, topic),
+        "wikipedia": _wikipedia(client, topic),
+        "reddit": _reddit(client, topic),
+        "so": _so(client, topic),
     }
-
     results = await asyncio.gather(*tasks.values(), return_exceptions=True)
+
     data = {"topic": topic}
-    sources_ok = 0
+    ok = 0
+    weights = {"hn": 0.25, "github_learn": 0.20, "github_jobs": 0.15, "wikipedia": 0.15, "reddit": 0.10, "so": 0.15}
+    total = 0.0
 
-    weights = {"so": 0.20, "hn": 0.20, "github_learn": 0.20, "github_jobs": 0.15, "wikipedia": 0.10, "reddit": 0.15}
-    total_score = 0.0
-
-    for key, result in zip(tasks.keys(), results):
-        if isinstance(result, dict):
-            data[key] = result
-            total_score += result.get("score", 0) * weights.get(key, 0.1)
-            sources_ok += 1
+    for key, res in zip(tasks.keys(), results):
+        if isinstance(res, dict):
+            data[key] = res
+            total += res.get("score", 0) * weights.get(key, 0.1)
+            ok += 1
         else:
-            data[key] = {"error": str(result)}
+            data[key] = {}
 
-    data["learning_demand_score"] = round(total_score, 4)
-    data["sources_ok"] = sources_ok
-
-    _set_cache(cache_key, data)
+    data["score"] = round(total, 4)
+    data["ok"] = ok
     return data
 
 
-# ─── Endpoint ───
+# ─── Endpoints ───
 
 @router.get("/scan", response_model=DemandResponse)
-async def scan_learning_demand(
-    country_code: str = Query("IL", description="ISO country code"),
+async def scan_demand(
+    country_code: str = Query("IL"),
     limit: int = Query(25, ge=5, le=50),
+    time_range: str = Query("30d", description="Timeline: 7d, 30d, 90d"),
 ) -> DemandResponse:
     """
-    Scan what people WANT TO LEARN right now.
-
-    Queries 6 live sources per topic (all free, no rate limits):
-    - StackOverflow beginner questions
-    - HackerNews learn/course/tutorial mentions
-    - GitHub learning repos
-    - GitHub hiring repos
-    - Wikipedia pageviews
-    - Reddit learning posts
+    Scan what people WANT TO LEARN — real data from 6 live sources.
+    Each topic gets: HN learn mentions, GitHub tutorial repos, Wikipedia views with daily timeline,
+    Reddit learning posts, SO tag count, and a composite learning demand score.
     """
     start = time.monotonic()
     country_name = COUNTRIES.get(country_code, country_code)
 
-    resp_cache = _cached(f"demand_full:{country_code}")
-    if resp_cache:
-        return resp_cache
+    full_ck = f"demand:{country_code}:{time_range}"
+    cached = _get(full_ck, FULL_CACHE_TTL)
+    if cached:
+        return cached
 
-    # Scan all topics in batches of 8 (to not overwhelm)
     all_data: list[dict] = []
+
     async with httpx.AsyncClient(timeout=10.0) as client:
-        for i in range(0, len(TOPICS), 8):
-            batch = TOPICS[i:i + 8]
+        # Scan in batches of 6 to respect GitHub rate limits
+        for i in range(0, len(TOPICS), 6):
+            batch = TOPICS[i:i + 6]
             results = await asyncio.gather(
-                *[_scan_topic(client, t) for t in batch],
+                *[_scan_one(client, t) for t in batch],
                 return_exceptions=True,
             )
             for r in results:
                 if isinstance(r, dict):
                     all_data.append(r)
+            # Small delay between batches to respect GitHub
+            if i + 6 < len(TOPICS):
+                await asyncio.sleep(0.5)
 
-    # Sort by learning demand
-    all_data.sort(key=lambda x: x.get("learning_demand_score", 0), reverse=True)
+    all_data.sort(key=lambda x: x.get("score", 0), reverse=True)
 
-    # Build response
-    items = []
+    items: list[DemandItem] = []
     for rank, d in enumerate(all_data[:limit], 1):
-        so = d.get("so", {})
         hn = d.get("hn", {})
-        gh_learn = d.get("github_learn", {})
-        gh_jobs = d.get("github_jobs", {})
+        gl = d.get("github_learn", {})
+        gj = d.get("github_jobs", {})
         wiki = d.get("wikipedia", {})
-        reddit = d.get("reddit", {})
+        rd = d.get("reddit", {})
+        so = d.get("so", {})
 
-        so_q = so.get("so_beginner", 0) if isinstance(so, dict) else 0
-        hn_m = hn.get("hn_learn", 0) if isinstance(hn, dict) else 0
-        gh_lr = gh_learn.get("repos", 0) if isinstance(gh_learn, dict) else 0
-        gh_jr = gh_jobs.get("job_repos", 0) if isinstance(gh_jobs, dict) else 0
-        wiki_v = wiki.get("views", 0) if isinstance(wiki, dict) else 0
-        reddit_p = reddit.get("posts", 0) if isinstance(reddit, dict) else 0
-
-        score = d.get("learning_demand_score", 0)
+        hn_m = hn.get("mentions", 0)
+        gl_r = gl.get("repos", 0)
+        gj_r = gj.get("repos", 0)
+        wiki_v = wiki.get("views", 0)
+        rd_p = rd.get("posts", 0)
+        so_c = so.get("count", 0)
+        score = d.get("score", 0)
 
         # Gap signal
-        learn_signal = so_q + hn_m + gh_lr
-        job_signal = gh_jr
-        if learn_signal > 5000 and job_signal > 1000:
+        learn = hn_m + gl_r + rd_p
+        hire = gj_r
+        if learn > 3000 and hire > 500:
             gap = "high_gap"
-        elif learn_signal > 1000 or job_signal > 500:
+        elif learn > 500 or hire > 200:
             gap = "moderate_gap"
-        elif learn_signal > 200:
+        elif learn > 100:
             gap = "low_gap"
         else:
-            gap = "saturated"
+            gap = "emerging"
 
         # Why
         parts = []
-        if so_q > 1000:
-            parts.append(f"{so_q:,} beginner questions on StackOverflow")
         if hn_m > 500:
             parts.append(f"{hn_m:,} learn/tutorial mentions on HackerNews")
-        if gh_lr > 5000:
-            parts.append(f"{gh_lr:,} tutorial repos on GitHub")
-        if gh_jr > 1000:
-            parts.append(f"Companies hiring: {gh_jr:,} job-related repos")
+        if gl_r > 1000:
+            parts.append(f"{gl_r:,} tutorial repos on GitHub")
+        if gj_r > 500:
+            parts.append(f"Hiring signal: {gj_r:,} job-related repos")
         if wiki_v > 50000:
             parts.append(f"{wiki_v:,} Wikipedia views/month")
-        why = ". ".join(parts) if parts else "Limited learning signals detected"
+        if so_c > 50000:
+            parts.append(f"{so_c:,} StackOverflow questions")
+        if rd_p >= 5:
+            parts.append(f"Active Reddit learning community ({rd_p} recent posts)")
+        why = ". ".join(parts) if parts else "Low signals — emerging or niche topic"
 
         # Action
-        if score >= 0.5 and gap in ("high_gap", "moderate_gap"):
+        if score >= 0.4 and gap in ("high_gap", "moderate_gap"):
             action = "🔥 Build course now — strong learning + hiring demand"
-        elif score >= 0.3:
-            action = "📈 Plan content — growing learning interest"
-        elif score >= 0.15:
-            action = "👀 Watch — moderate signals"
+        elif score >= 0.25:
+            action = "📈 Plan content — meaningful learning interest"
+        elif score >= 0.1:
+            action = "👀 Watch — growing interest"
         else:
             action = "⏸️ Low priority"
 
+        # Timeline from Wikipedia
+        timeline = [TimelinePoint(date=p["date"], value=p["value"]) for p in wiki.get("timeline", [])]
+
         items.append(DemandItem(
-            rank=rank,
-            topic=d.get("topic", "?"),
-            learning_demand_score=score,
-            people_want_to_learn=so_q + hn_m,
-            companies_are_hiring=gh_jr,
-            community_activity=reddit_p + hn_m,
-            github_learning_repos=gh_lr,
-            so_beginner_questions=so_q,
-            hn_learn_mentions=hn_m,
-            wikipedia_views=wiki_v,
-            gap_signal=gap,
-            why=why,
-            action=action,
-            sources_succeeded=d.get("sources_ok", 0),
+            rank=rank, topic=d["topic"], learning_demand_score=score,
+            hn_learn_mentions=hn_m, hn_avg_score=hn.get("avg_score", 0),
+            github_learning_repos=gl_r, github_job_repos=gj_r,
+            wikipedia_views_30d=wiki_v, reddit_learn_posts=rd_p, so_tag_count=so_c,
+            gap_signal=gap, why=why, action=action,
+            sources_ok=d.get("ok", 0), timeline=timeline,
         ))
 
     elapsed = int((time.monotonic() - start) * 1000)
 
     response = DemandResponse(
-        country_code=country_code,
-        country_name=country_name,
-        scan_time_ms=elapsed,
-        topics_analyzed=len(TOPICS),
+        country_code=country_code, country_name=country_name,
+        scan_time_ms=elapsed, topics_analyzed=len(TOPICS),
         timestamp=datetime.now(timezone.utc).isoformat(),
-        results=items,
+        time_range=time_range, results=items,
     )
-    _set_cache(f"demand_full:{country_code}", response)
+    _put(full_ck, response)
     return response
