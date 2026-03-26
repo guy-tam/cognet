@@ -13,7 +13,8 @@ from app.core.settings import get_settings
 _settings = get_settings()
 
 # SQLite needs special handling: no pool_pre_ping, connect_args for threading
-_is_sqlite = _settings.database_url.startswith("sqlite")
+_db_url = _settings.async_database_url
+_is_sqlite = _db_url.startswith("sqlite")
 
 _engine_kwargs = {
     "echo": _settings.app_env == "development",
@@ -24,7 +25,7 @@ if _is_sqlite:
 else:
     _engine_kwargs["pool_pre_ping"] = True
 
-engine = create_async_engine(_settings.database_url, **_engine_kwargs)
+engine = create_async_engine(_db_url, **_engine_kwargs)
 
 AsyncSessionLocal = async_sessionmaker(
     engine,
