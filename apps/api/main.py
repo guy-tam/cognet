@@ -11,6 +11,9 @@ from app.core.settings import get_settings
 from app.routes.health import router as health_router
 from app.routes.opportunities import router as opportunities_router
 from app.routes.pipeline import router as pipeline_router
+from app.routes.search import router as search_router
+from app.routes.discover import router as discover_router
+from app.routes.demand import router as demand_router
 from app.telemetry.middleware import RequestTelemetryMiddleware
 
 
@@ -87,6 +90,9 @@ def create_app() -> FastAPI:
     # נתיבי עסקים — תחת /api
     app.include_router(opportunities_router, prefix="/api")
     app.include_router(pipeline_router, prefix="/api")
+    app.include_router(search_router, prefix="/api")
+    app.include_router(discover_router, prefix="/api")
+    app.include_router(demand_router, prefix="/api")
 
     return app
 

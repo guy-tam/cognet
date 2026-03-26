@@ -74,6 +74,16 @@ export default function Navigation({ locale }: NavigationProps) {
           isActive={isActive('/opportunities')}
         />
         <NavItem
+          href="/discover"
+          label={t('discover') || '🌍 Market Scanner'}
+          isActive={isActive('/discover') || isActive('/search')}
+        />
+        <NavItem
+          href="/demand"
+          label={t('demand') || '📚 Learning Demand'}
+          isActive={isActive('/demand')}
+        />
+        <NavItem
           href="/pipeline"
           label={t('pipeline')}
           isActive={isActive('/pipeline')}

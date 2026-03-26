@@ -2,6 +2,8 @@
   "nav": {
     "dashboard": "Dashboard",
     "opportunities": "Opportunities",
+    "discover": "🌍 Market Scanner",
+    "demand": "📚 Learning Demand",
     "pipeline": "Pipeline Status",
     "settings": "Settings"
   },

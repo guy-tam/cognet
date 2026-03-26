@@ -1,228 +1,134 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
-import { useEffect, useState } from 'react'
-import { getTopOpportunities, getPipelineStatus } from '@/lib/api-client'
-import type { OpportunityResponse, PipelineStatusResponse } from '@/types/api'
+import { useState, useEffect } from 'react'
+import ScoreBar from '@/components/ScoreBar'
+import { Link } from '@/lib/navigation'
 
-// רכיב skeleton לטעינה
-function StatCardSkeleton() {
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 animate-pulse">
-      <div className="h-4 bg-gray-200 rounded w-1/2 mb-3" />
-      <div className="h-8 bg-gray-200 rounded w-1/3" />
-    </div>
-  )
-}
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api'
 
-// כרטיס סטטיסטיקה
-function StatCard({
-  label,
-  value,
-  color = 'blue',
-}: {
-  label: string
-  value: string | number
-  color?: 'blue' | 'green' | 'yellow' | 'red'
-}) {
-  const colorMap = {
-    blue: 'text-blue-600',
-    green: 'text-green-600',
-    yellow: 'text-yellow-600',
-    red: 'text-red-600',
-  }
-
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-      <p className="text-sm font-medium text-gray-500">{label}</p>
-      <p className={`text-3xl font-bold mt-1 ${colorMap[color]}`}>{value}</p>
-    </div>
-  )
-}
-
-// בדג סטטוס pipeline
-function StatusBadge({ status }: { status: string }) {
-  const colorMap: Record<string, string> = {
-    completed: 'bg-green-100 text-green-800',
-    running: 'bg-blue-100 text-blue-800',
-    failed: 'bg-red-100 text-red-800',
-    partial: 'bg-yellow-100 text-yellow-800',
-    pending: 'bg-gray-100 text-gray-800',
-  }
-  const cls = colorMap[status] ?? 'bg-gray-100 text-gray-800'
-
-  return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${cls}`}>
-      {status}
-    </span>
-  )
+interface Opp {
+  canonical_topic_name: string
+  opportunity_score: number
+  confidence_score: number
+  classification: string
+  country_code: string
+  why_now_summary: string
 }
 
 export default function DashboardPage() {
-  const t = useTranslations('dashboard')
-  const tCommon = useTranslations('common')
-
-  const [topOps, setTopOps] = useState<OpportunityResponse[]>([])
-  const [pipeline, setPipeline] = useState<PipelineStatusResponse | null>(null)
+  const t = useTranslations()
+  const [opps, setOpps] = useState<Opp[]>([])
+  const [pipeStatus, setPipeStatus] = useState<string>('...')
+  const [apiStatus, setApiStatus] = useState<string>('...')
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [lastRefresh, setLastRefresh] = useState('')
 
-  async function loadData() {
+  async function refresh() {
     setLoading(true)
-    setError(null)
     try {
-      const [ops, pip] = await Promise.all([
-        getTopOpportunities({ limit: 5 }),
-        getPipelineStatus(),
+      const [h, o, p] = await Promise.allSettled([
+        fetch(`${API}/../health`).then(r => r.json()),
+        fetch(`${API}/v1/opportunities/top?limit=10`).then(r => r.json()),
+        fetch(`${API}/v1/pipeline/status`).then(r => r.json()),
       ])
-      setTopOps(ops)
-      setPipeline(pip)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : tCommon('error'))
-    } finally {
-      setLoading(false)
-    }
+      setApiStatus(h.status === 'fulfilled' ? h.value?.status || '?' : 'offline')
+      if (o.status === 'fulfilled') setOpps(Array.isArray(o.value) ? o.value : o.value?.opportunities || [])
+      if (p.status === 'fulfilled') setPipeStatus(p.value?.status || '?')
+      setLastRefresh(new Date().toLocaleTimeString())
+    } catch { setApiStatus('error') }
+    finally { setLoading(false) }
   }
 
-  useEffect(() => {
-    loadData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  useEffect(() => { refresh() }, [])
+  useEffect(() => { const i = setInterval(refresh, 60000); return () => clearInterval(i) }, [])
+
+  const cc: Record<string, string> = {
+    immediate: 'bg-green-100 text-green-800', near_term: 'bg-blue-100 text-blue-800',
+    watchlist: 'bg-yellow-100 text-yellow-800', low_priority: 'bg-gray-100 text-gray-600',
+  }
+  const sc: Record<string, string> = { ok: 'bg-green-500', completed: 'bg-green-500', degraded: 'bg-yellow-500', offline: 'bg-red-500' }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
-      {/* כותרת */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">{t('title')}</h1>
-        <p className="text-gray-500 mt-1">{t('subtitle')}</p>
-      </div>
-
-      {/* שגיאה */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between">
-          <p className="text-red-700 text-sm">{error}</p>
-          <button
-            onClick={loadData}
-            className="text-sm font-medium text-red-700 underline hover:no-underline"
-          >
-            {tCommon('retry')}
+    <div className="space-y-6 max-w-6xl">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">{t('dashboard.title')}</h1>
+          <p className="text-gray-500 text-sm">{t('dashboard.subtitle')}</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {lastRefresh && <span className="text-xs text-gray-400">{lastRefresh}</span>}
+          <button onClick={refresh} disabled={loading} className="px-3 py-1.5 bg-gray-100 rounded text-sm hover:bg-gray-200">
+            {loading ? '...' : '↻'}
           </button>
         </div>
-      )}
-
-      {/* כרטיסי סטטיסטיקה */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {loading ? (
-          <>
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-          </>
-        ) : (
-          <>
-            <StatCard
-              label={t('total_opportunities')}
-              value={topOps.length > 0 ? `${topOps.length}+` : '0'}
-              color="blue"
-            />
-            <StatCard
-              label={t('pipeline_status')}
-              value={pipeline?.status ?? tCommon('unknown')}
-              color={
-                pipeline?.status === 'completed'
-                  ? 'green'
-                  : pipeline?.status === 'failed'
-                  ? 'red'
-                  : 'yellow'
-              }
-            />
-            <StatCard
-              label={t('last_run')}
-              value={
-                pipeline?.started_at
-                  ? new Date(pipeline.started_at).toLocaleDateString()
-                  : tCommon('na')
-              }
-              color="blue"
-            />
-          </>
-        )}
       </div>
 
-      {/* טבלת הזדמנויות מובילות */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-900">{t('top_opportunities')}</h2>
+      {/* Status */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-lg shadow p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <div className={`w-2.5 h-2.5 rounded-full ${sc[apiStatus] || 'bg-gray-400'}`} />
+            <span className="text-sm text-gray-500">API</span>
+          </div>
+          <div className="text-lg font-bold capitalize">{apiStatus}</div>
         </div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <div className={`w-2.5 h-2.5 rounded-full ${sc[pipeStatus] || 'bg-gray-400'}`} />
+            <span className="text-sm text-gray-500">Pipeline</span>
+          </div>
+          <div className="text-lg font-bold capitalize">{pipeStatus}</div>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <span className="text-sm text-gray-500">{t('dashboard.total_opportunities')}</span>
+          <div className="text-2xl font-bold">{opps.length}</div>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <span className="text-sm text-gray-500">Top Score</span>
+          <div className="text-2xl font-bold">{opps[0] ? `${(opps[0].opportunity_score * 100).toFixed(0)}%` : '—'}</div>
+        </div>
+      </div>
 
-        {loading ? (
-          <div className="p-6 space-y-3">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-10 bg-gray-100 rounded animate-pulse" />
+      {/* Quick actions */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Link href="/discover" className="bg-white rounded-lg shadow p-4 hover:bg-blue-50 transition border-l-4 border-blue-500 block">
+          <div className="font-medium">🌍 {t('nav.discover')}</div>
+          <p className="text-sm text-gray-500 mt-1">Scan 50 topics × 5 sources × 50 countries — real-time</p>
+        </Link>
+        <Link href="/demand" className="bg-white rounded-lg shadow p-4 hover:bg-purple-50 transition border-l-4 border-purple-500 block">
+          <div className="font-medium">📚 Learning Demand</div>
+          <p className="text-sm text-gray-500 mt-1">What people want to learn — search patterns + hiring signals</p>
+        </Link>
+        <Link href="/opportunities" className="bg-white rounded-lg shadow p-4 hover:bg-green-50 transition border-l-4 border-green-500 block">
+          <div className="font-medium">📊 {t('nav.opportunities')}</div>
+          <p className="text-sm text-gray-500 mt-1">{opps.length} ranked opportunities from pipeline</p>
+        </Link>
+      </div>
+
+      {/* Top opportunities live table */}
+      {opps.length > 0 && (
+        <div className="bg-white rounded-lg shadow">
+          <div className="px-5 py-3 border-b flex items-center justify-between">
+            <h2 className="font-semibold">{t('dashboard.top_opportunities')}</h2>
+            <Link href="/opportunities" className="text-sm text-blue-600 hover:underline">View all →</Link>
+          </div>
+          <div className="divide-y">
+            {opps.slice(0, 8).map((o, i) => (
+              <div key={i} className="px-5 py-3 flex items-center gap-4 hover:bg-gray-50">
+                <span className="text-gray-400 text-sm w-6">{i + 1}</span>
+                <div className="flex-1">
+                  <span className="font-medium capitalize">{o.canonical_topic_name}</span>
+                  <span className="text-xs text-gray-400 ml-2">{o.country_code}</span>
+                </div>
+                <div className="w-20"><ScoreBar score={o.opportunity_score} label="" /></div>
+                <span className="text-sm w-12">{(o.opportunity_score * 100).toFixed(0)}%</span>
+                <span className={`px-2 py-0.5 rounded-full text-xs ${cc[o.classification] || 'bg-gray-100'}`}>
+                  {o.classification?.replace('_', ' ')}
+                </span>
+              </div>
             ))}
           </div>
-        ) : topOps.length === 0 ? (
-          <div className="p-6 text-center text-gray-400 text-sm">
-            {tCommon('na')}
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="text-start px-6 py-3 font-medium text-gray-500">נושא</th>
-                <th className="text-start px-6 py-3 font-medium text-gray-500">שוק</th>
-                <th className="text-start px-6 py-3 font-medium text-gray-500">ציון</th>
-                <th className="text-start px-6 py-3 font-medium text-gray-500">סיווג</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {topOps.map((op, idx) => (
-                <tr key={op.id ?? idx} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-3 font-medium text-gray-900 truncate max-w-xs">
-                    {op.canonical_topic_name}
-                  </td>
-                  <td className="px-6 py-3 text-gray-600">
-                    {op.country_code}/{op.language_code}
-                  </td>
-                  <td className="px-6 py-3">
-                    <span className="font-semibold text-blue-700">
-                      {(op.opportunity_score * 100).toFixed(0)}%
-                    </span>
-                  </td>
-                  <td className="px-6 py-3">
-                    <StatusBadge status={op.classification} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* פרטי pipeline */}
-      {pipeline && !loading && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('pipeline_status')}</h2>
-          <dl className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-            <div>
-              <dt className="text-gray-500">Run ID</dt>
-              <dd className="font-mono text-xs text-gray-700 truncate">{pipeline.pipeline_run_id ?? tCommon('na')}</dd>
-            </div>
-            <div>
-              <dt className="text-gray-500">סטטוס</dt>
-              <dd><StatusBadge status={pipeline.status} /></dd>
-            </div>
-            <div>
-              <dt className="text-gray-500">שגיאות</dt>
-              <dd className={pipeline.error_count > 0 ? 'text-red-600 font-semibold' : 'text-gray-700'}>
-                {pipeline.error_count}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-gray-500">שלבים</dt>
-              <dd className="text-gray-700">{pipeline.step_summaries.length}</dd>
-            </div>
-          </dl>
         </div>
       )}
     </div>
